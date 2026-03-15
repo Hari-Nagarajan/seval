@@ -1,0 +1,14 @@
+.planning/
+.DS_Store
+.idea/
+.vscode/
+.seval/
+.claude/
+*.log
+*.tmp
+*.bak
+*.swp
+*.swo
+*.env
+
+/target
