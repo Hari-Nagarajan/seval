@@ -1,10 +1,14 @@
 # seval
 
-AI-powered security research CLI built in Rust. Features a split-pane TUI dashboard, agentic tool execution via Claude models (AWS Bedrock or OpenRouter), session persistence, and context compression.
+[![Rust](https://img.shields.io/badge/rust-1.85%2B-orange?logo=rust)](https://www.rust-lang.org/)
+[![License: AGPL v3](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
+[![CLA assistant](https://cla-assistant.io/readme/badge/Hari-Nagarajan/seval)](https://cla-assistant.io/Hari-Nagarajan/seval)
+
+AI-powered security research CLI built in Rust. Features a split-pane TUI dashboard, agentic tool execution via any LLM (AWS Bedrock or OpenRouter), session persistence, and context compression.
 
 ## Features
 
-- **Streaming chat** with Claude models through AWS Bedrock or OpenRouter
+- **Streaming chat** with any LLM through AWS Bedrock or OpenRouter (Claude, GPT, Llama, Gemini, etc.)
 - **10 built-in tools** the AI can invoke autonomously (shell, file ops, search, web)
 - **Split-pane TUI** powered by ratatui -- chat on the left, tool output on the right
 - **Session management** with SQLite persistence, resume/export/import
@@ -153,4 +157,4 @@ The interface is a split-pane terminal UI:
 
 ## License
 
-Apache-2.0
+This project is licensed under the [GNU Affero General Public License v3.0](LICENSE).
