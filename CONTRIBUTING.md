@@ -11,10 +11,13 @@ The CLA ensures that contributions can be properly licensed and that the project
 ## Getting Started
 
 1. Fork the repo and create a branch from `main`
-2. Make your changes
-3. Run `cargo build` and `cargo test` to verify
-4. Run `cargo clippy` and fix any warnings
-5. Open a pull request
+2. Enable the git hooks: `git config core.hooksPath .githooks`
+3. Make your changes
+4. Run `cargo build` and `cargo test` to verify
+5. Run `cargo clippy` and fix any warnings
+6. Open a pull request
+
+The pre-push hook runs `cargo fmt --check`, `cargo clippy`, and `cargo test` automatically before each push.
 
 ## Code Style
 
