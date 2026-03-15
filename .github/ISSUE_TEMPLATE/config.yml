@@ -1,5 +1,8 @@
-blank_issues_enabled: true
+blank_issues_enabled: false
 contact_links:
   - name: Security Vulnerability
     url: https://github.com/Hari-Nagarajan/seval/security/advisories/new
     about: Report security vulnerabilities privately via GitHub Security Advisories
+  - name: Contributing Guide
+    url: https://github.com/Hari-Nagarajan/seval/blob/main/CONTRIBUTING.md
+    about: Read contribution requirements and CLA process before opening an issue
