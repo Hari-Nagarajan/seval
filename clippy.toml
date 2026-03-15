@@ -1,0 +1,14 @@
+# Clippy configuration
+# https://doc.rust-lang.org/clippy/lint_configuration.html
+
+# Max lines per function before too_many_lines fires.
+too-many-lines-threshold = 120
+
+# Max cognitive complexity before cognitive_complexity fires.
+cognitive-complexity-threshold = 30
+
+# Disallowed names (catches placeholder vars left in code).
+disallowed-names = ["foo", "bar", "baz", "temp", "tmp"]
+
+# Max function args before too_many_arguments fires.
+too-many-arguments-threshold = 8
