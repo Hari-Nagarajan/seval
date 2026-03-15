@@ -3,8 +3,24 @@ name: CI
 on:
   push:
     branches: [main]
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "deny.toml"
+      - "scripts/ci/**"
+      - ".github/workflows/**"
   pull_request:
     branches: [main]
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "deny.toml"
+      - "scripts/ci/**"
+      - ".github/workflows/**"
 
 concurrency:
   group: ci-${{ github.event.pull_request.number || github.sha }}

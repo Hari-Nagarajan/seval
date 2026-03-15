@@ -1,0 +1,7 @@
+# CodeQL configuration for seval
+#
+# Ignore test files — they may contain security-focused fixtures
+# (example payloads, mock credentials, etc.) that trigger false positives.
+
+paths-ignore:
+    - tests/**

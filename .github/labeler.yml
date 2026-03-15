@@ -1,0 +1,59 @@
+"docs":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "**/*.md"
+          - "LICENSE"
+
+"dependencies":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "Cargo.toml"
+          - "Cargo.lock"
+          - "deny.toml"
+
+"ci":
+  - changed-files:
+      - any-glob-to-any-file:
+          - ".github/**"
+          - ".githooks/**"
+          - "scripts/ci/**"
+
+"ai":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "src/ai/**"
+
+"chat":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "src/chat/**"
+
+"tools":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "src/tools/**"
+
+"tui":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "src/tui/**"
+
+"config":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "src/config/**"
+
+"session":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "src/session/**"
+
+"approval":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "src/approval/**"
+
+"tests":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "tests/**"
