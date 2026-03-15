@@ -12,16 +12,16 @@ mod rendering;
 
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use ratatui::Frame;
 use ratatui::layout::{Alignment, Constraint, Layout, Rect};
 use ratatui::widgets::{ListState, Paragraph};
-use ratatui::Frame;
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::action::Action;
 use crate::config::defaults;
 use crate::config::{
-    global_config_path, save_config, ApprovalMode, AwsConfig, BedrockConfig, GlobalConfig,
-    OpenRouterConfig, ProjectConfig, ProviderConfig, ProviderKind, ToolsConfig,
+    ApprovalMode, AwsConfig, BedrockConfig, GlobalConfig, OpenRouterConfig, ProjectConfig,
+    ProviderConfig, ProviderKind, ToolsConfig, global_config_path, save_config,
 };
 use crate::tui::Component;
 
@@ -95,8 +95,14 @@ impl WizardStep {
 pub(super) const MODE_DESCRIPTIONS: [(&str, &str); 4] = [
     ("Plan", "Read-only mode, no tool execution"),
     ("Default", "Ask before write operations (recommended)"),
-    ("Auto-Edit", "Auto-approve file edits, ask for shell commands"),
-    ("Yolo", "Approve everything automatically (use with caution)"),
+    (
+        "Auto-Edit",
+        "Auto-approve file edits, ask for shell commands",
+    ),
+    (
+        "Yolo",
+        "Approve everything automatically (use with caution)",
+    ),
 ];
 
 /// Provider options for the wizard.
@@ -107,14 +113,29 @@ pub(super) const PROVIDER_OPTIONS: [(&str, &str); 2] = [
 
 /// Common model choices per provider.
 pub const BEDROCK_MODELS: [(&str, &str); 3] = [
-    ("us.anthropic.claude-sonnet-4-20250514-v1:0", "Claude Sonnet 4 (recommended)"),
-    ("us.anthropic.claude-opus-4-20250514-v1:0", "Claude Opus 4 (highest quality)"),
-    ("us.anthropic.claude-haiku-4-5-20251001-v1:0", "Claude Haiku 4.5 (fastest)"),
+    (
+        "us.anthropic.claude-sonnet-4-20250514-v1:0",
+        "Claude Sonnet 4 (recommended)",
+    ),
+    (
+        "us.anthropic.claude-opus-4-20250514-v1:0",
+        "Claude Opus 4 (highest quality)",
+    ),
+    (
+        "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+        "Claude Haiku 4.5 (fastest)",
+    ),
 ];
 
 pub const OPENROUTER_MODELS: [(&str, &str); 12] = [
-    ("anthropic/claude-sonnet-4-6", "Claude Sonnet 4.6 (recommended)"),
-    ("anthropic/claude-opus-4-6", "Claude Opus 4.6 (highest quality)"),
+    (
+        "anthropic/claude-sonnet-4-6",
+        "Claude Sonnet 4.6 (recommended)",
+    ),
+    (
+        "anthropic/claude-opus-4-6",
+        "Claude Opus 4.6 (highest quality)",
+    ),
     ("anthropic/claude-haiku-4-5", "Claude Haiku 4.5 (fastest)"),
     ("deepseek/deepseek-v3.2", "DeepSeek V3.2"),
     ("minimax/minimax-m2.5", "MiniMax M2.5"),
@@ -122,9 +143,15 @@ pub const OPENROUTER_MODELS: [(&str, &str); 12] = [
     ("z-ai/glm-5", "GLM 5"),
     ("openrouter/hunter-alpha", "Hunter Alpha (1M context, free)"),
     ("openrouter/healer-alpha", "Healer Alpha (free)"),
-    ("nvidia/nemotron-3-super-120b-a12b:free", "Nemotron 3 Super 120B (free)"),
+    (
+        "nvidia/nemotron-3-super-120b-a12b:free",
+        "Nemotron 3 Super 120B (free)",
+    ),
     ("stepfun/step-3.5-flash:free", "Step 3.5 Flash (free)"),
-    ("qwen/qwen3-next-80b-a3b-instruct:free", "Qwen3 Next 80B (free)"),
+    (
+        "qwen/qwen3-next-80b-a3b-instruct:free",
+        "Qwen3 Next 80B (free)",
+    ),
 ];
 
 /// Interactive setup wizard component.
@@ -340,8 +367,8 @@ impl Component for Wizard {
         let wizard_area = Self::centered_rect(area, 60, 20);
 
         // Split into header + content.
-        let chunks = Layout::vertical([Constraint::Length(2), Constraint::Min(4)])
-            .split(wizard_area);
+        let chunks =
+            Layout::vertical([Constraint::Length(2), Constraint::Min(4)]).split(wizard_area);
 
         self.draw_header(frame, chunks[0]);
 

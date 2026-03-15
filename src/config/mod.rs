@@ -125,9 +125,7 @@ impl AppConfig {
 
     /// Check if a global configuration file exists.
     pub fn has_global_config() -> bool {
-        global_config_path()
-            .map(|p| p.exists())
-            .unwrap_or(false)
+        global_config_path().map(|p| p.exists()).unwrap_or(false)
     }
 }
 
@@ -233,7 +231,10 @@ mod tests {
 approval_mode = "yolo"
 "#;
         let config: ProjectConfig = toml::from_str(toml_str).unwrap();
-        assert_eq!(config.tools.unwrap().approval_mode, Some(ApprovalMode::Yolo));
+        assert_eq!(
+            config.tools.unwrap().approval_mode,
+            Some(ApprovalMode::Yolo)
+        );
         assert!(config.aws.is_none());
     }
 
@@ -305,7 +306,10 @@ approval_mode = "yolo"
     fn default_deny_rules_include_dangerous_commands() {
         let rules = defaults::default_deny_rules();
         assert!(rules.iter().any(|r| r == "rm -rf /"), "missing rm -rf /");
-        assert!(rules.iter().any(|r| r == "chmod 777 /"), "missing chmod 777 /");
+        assert!(
+            rules.iter().any(|r| r == "chmod 777 /"),
+            "missing chmod 777 /"
+        );
         assert!(rules.iter().any(|r| r == "mkfs.*"), "missing mkfs.*");
     }
 
@@ -326,9 +330,11 @@ approval_mode = "yolo"
 
     #[test]
     fn load_from_paths_no_files_returns_defaults() {
-        let config =
-            AppConfig::load_from_paths(Path::new("/nonexistent/global"), Path::new("/nonexistent/project"))
-                .unwrap();
+        let config = AppConfig::load_from_paths(
+            Path::new("/nonexistent/global"),
+            Path::new("/nonexistent/project"),
+        )
+        .unwrap();
         assert_eq!(config.aws, AwsConfig::default());
         assert_eq!(config.tools.approval_mode, ApprovalMode::Default);
         assert!(!config.tools.deny_rules.is_empty());

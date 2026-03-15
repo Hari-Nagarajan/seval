@@ -172,7 +172,10 @@ mod tests {
 
         assert!(text.contains("Title"), "should contain heading text");
         assert!(text.contains("Hello"), "should contain paragraph text");
-        assert!(text.contains("world"), "should contain bold text as plain text");
+        assert!(
+            text.contains("world"),
+            "should contain bold text as plain text"
+        );
         assert!(text.contains("Item 1"), "should contain list items");
         assert!(text.contains("Item 2"), "should contain list items");
     }
@@ -181,10 +184,7 @@ mod tests {
     fn test_html_links_preserved_as_text() {
         let html = b"<html><body><a href=\"https://example.com\">Click here</a></body></html>";
         let text = html2text::from_read(&html[..], 80).unwrap();
-        assert!(
-            text.contains("Click here"),
-            "should contain link text"
-        );
+        assert!(text.contains("Click here"), "should contain link text");
     }
 
     #[tokio::test]

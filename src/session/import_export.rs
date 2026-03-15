@@ -120,10 +120,7 @@ pub fn import_seval_session_from_str(db: &Database, json_str: &str) -> Result<St
 
     for msg in &record.messages {
         match msg {
-            SevalMessageRecord::User {
-                content,
-                ..
-            } => {
+            SevalMessageRecord::User { content, .. } => {
                 db.save_message(&session.id, "user", content, None, None)?;
             }
             SevalMessageRecord::Assistant {
@@ -135,8 +132,7 @@ pub fn import_seval_session_from_str(db: &Database, json_str: &str) -> Result<St
                 let (tok_in, tok_out) = tokens
                     .as_ref()
                     .map_or((None, None), |t| (t.input_tokens, t.output_tokens));
-                let msg_id =
-                    db.save_message(&session.id, "assistant", content, tok_in, tok_out)?;
+                let msg_id = db.save_message(&session.id, "assistant", content, tok_in, tok_out)?;
 
                 if let Some(calls) = tool_calls {
                     for tc in calls {
@@ -207,8 +203,9 @@ pub fn export_seval_session_to_string(db: &Database, session_id: &str) -> Result
                             .iter()
                             .map(|tc| SevalToolCallRecord {
                                 name: tc.name.clone(),
-                                args: serde_json::from_str(&tc.args_json)
-                                    .unwrap_or(serde_json::Value::Object(serde_json::Map::default())),
+                                args: serde_json::from_str(&tc.args_json).unwrap_or(
+                                    serde_json::Value::Object(serde_json::Map::default()),
+                                ),
                                 result: tc.result_text.clone(),
                             })
                             .collect(),
@@ -244,7 +241,10 @@ pub fn export_seval_session_to_string(db: &Database, session_id: &str) -> Result
 
     // Derive project hash from project_path.
     let project_hash = if session.project_path.starts_with("imported/") {
-        session.project_path.trim_start_matches("imported/").to_string()
+        session
+            .project_path
+            .trim_start_matches("imported/")
+            .to_string()
     } else {
         // Hash the project path for export.
         use std::hash::{Hash, Hasher};
@@ -328,7 +328,7 @@ mod tests {
             SevalMessageRecord::User { content, .. } => {
                 assert_eq!(content, "Check this server for vulnerabilities");
             }
-            other => panic!("Expected User, got {:?}", other),
+            other => panic!("Expected User, got {other:?}"),
         }
 
         // Check assistant message with tool calls.
@@ -350,7 +350,7 @@ mod tests {
                 assert_eq!(tok.output_tokens, Some(50));
                 assert_eq!(model.as_deref(), Some("claude-sonnet"));
             }
-            other => panic!("Expected Assistant, got {:?}", other),
+            other => panic!("Expected Assistant, got {other:?}"),
         }
 
         // Check compression message.
@@ -365,7 +365,7 @@ mod tests {
                 assert_eq!(*tokens_before, 5000);
                 assert_eq!(*tokens_after, 500);
             }
-            other => panic!("Expected Compression, got {:?}", other),
+            other => panic!("Expected Compression, got {other:?}"),
         }
     }
 
@@ -424,14 +424,23 @@ mod tests {
     #[test]
     fn export_seval_session_produces_valid_json() {
         let db = Database::open_in_memory().unwrap();
-        let session = db.create_session("/my/project", Some("claude-sonnet")).unwrap();
+        let session = db
+            .create_session("/my/project", Some("claude-sonnet"))
+            .unwrap();
         db.save_message(&session.id, "user", "hello", None, None)
             .unwrap();
         let msg_id = db
             .save_message(&session.id, "assistant", "hi there", Some(100), Some(20))
             .unwrap();
-        db.save_tool_call(msg_id, "shell", r#"{"command":"ls"}"#, Some("file.txt"), "success", None)
-            .unwrap();
+        db.save_tool_call(
+            msg_id,
+            "shell",
+            r#"{"command":"ls"}"#,
+            Some("file.txt"),
+            "success",
+            None,
+        )
+        .unwrap();
 
         let json_str = export_seval_session_to_string(&db, &session.id).unwrap();
         let record: SevalConversationRecord = serde_json::from_str(&json_str).unwrap();
@@ -442,7 +451,7 @@ mod tests {
         // Check user message.
         match &record.messages[0] {
             SevalMessageRecord::User { content, .. } => assert_eq!(content, "hello"),
-            other => panic!("Expected User, got {:?}", other),
+            other => panic!("Expected User, got {other:?}"),
         }
 
         // Check assistant message with tool call.
@@ -463,7 +472,7 @@ mod tests {
                 assert_eq!(tok.output_tokens, Some(20));
                 assert_eq!(model.as_deref(), Some("claude-sonnet"));
             }
-            other => panic!("Expected Assistant, got {:?}", other),
+            other => panic!("Expected Assistant, got {other:?}"),
         }
     }
 
@@ -486,7 +495,7 @@ mod tests {
             SevalMessageRecord::User { content, .. } => {
                 assert_eq!(content, "Check this server for vulnerabilities");
             }
-            other => panic!("Expected User, got {:?}", other),
+            other => panic!("Expected User, got {other:?}"),
         }
 
         // Message 1: assistant with tool call content preserved.
@@ -500,7 +509,7 @@ mod tests {
                 let calls = tool_calls.as_ref().unwrap();
                 assert_eq!(calls[0].name, "shell");
             }
-            other => panic!("Expected Assistant, got {:?}", other),
+            other => panic!("Expected Assistant, got {other:?}"),
         }
 
         // Message 2: compression stored as system, exported as user.
@@ -508,7 +517,7 @@ mod tests {
             SevalMessageRecord::User { content, .. } => {
                 assert!(content.contains("Compression"));
             }
-            other => panic!("Expected User (from system), got {:?}", other),
+            other => panic!("Expected User (from system), got {other:?}"),
         }
 
         // Name preserved.
@@ -541,7 +550,11 @@ mod tests {
         let messages = db.get_session_messages(&session_id).unwrap();
         assert_eq!(messages.len(), 1);
         assert_eq!(messages[0].role, "system");
-        assert!(messages[0].content.contains("Earlier conversation about ports"));
+        assert!(
+            messages[0]
+                .content
+                .contains("Earlier conversation about ports")
+        );
     }
 
     #[test]

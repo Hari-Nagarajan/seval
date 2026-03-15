@@ -3,15 +3,15 @@
 //! Contains all `draw_*` methods and rendering helpers that paint
 //! the wizard UI to the terminal frame.
 
+use ratatui::Frame;
 use ratatui::layout::{Alignment, Constraint, Flex, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, List, ListItem, Paragraph};
-use ratatui::Frame;
 
-use crate::config::{project_config_path, ProviderKind};
+use crate::config::{ProviderKind, project_config_path};
 
-use super::{Wizard, WizardStep, MODE_DESCRIPTIONS, PROVIDER_OPTIONS};
+use super::{MODE_DESCRIPTIONS, PROVIDER_OPTIONS, Wizard, WizardStep};
 
 impl Wizard {
     /// Center a rect within the given area.
@@ -129,7 +129,9 @@ impl Wizard {
             let active = i == self.bedrock_field_index;
             let prefix = if active { "> " } else { "  " };
             let label_style = if active {
-                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD)
             } else {
                 Style::default().fg(Color::DarkGray)
             };
@@ -278,8 +280,7 @@ impl Wizard {
     /// Draw the deny rules editing step.
     pub(super) fn draw_deny_rules(&self, frame: &mut Frame, area: Rect) {
         // Split area: list on top, instructions/input at bottom.
-        let chunks =
-            Layout::vertical([Constraint::Min(4), Constraint::Length(3)]).split(area);
+        let chunks = Layout::vertical([Constraint::Min(4), Constraint::Length(3)]).split(area);
 
         let items: Vec<ListItem> = self
             .deny_rules
@@ -295,11 +296,7 @@ impl Wizard {
                     .borders(Borders::ALL)
                     .border_style(Style::default().fg(Color::Cyan)),
             )
-            .highlight_style(
-                Style::default()
-                    .fg(Color::Red)
-                    .add_modifier(Modifier::BOLD),
-            )
+            .highlight_style(Style::default().fg(Color::Red).add_modifier(Modifier::BOLD))
             .highlight_symbol("> ");
 
         frame.render_stateful_widget(list, chunks[0], &mut self.deny_rule_state.clone());
@@ -343,9 +340,7 @@ impl Wizard {
         let no_style = if self.create_project_config {
             Style::default().fg(Color::DarkGray)
         } else {
-            Style::default()
-                .fg(Color::Red)
-                .add_modifier(Modifier::BOLD)
+            Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)
         };
 
         let project_path = project_config_path();

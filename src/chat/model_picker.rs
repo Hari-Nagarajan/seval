@@ -1,11 +1,11 @@
 //! Model picker overlay logic.
 
 use crossterm::event::{KeyCode, KeyEvent};
+use ratatui::Frame;
 use ratatui::layout::{Alignment, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, List, ListItem, Paragraph};
-use ratatui::Frame;
 
 use crate::action::Action;
 
@@ -48,10 +48,12 @@ impl Chat {
 
     /// Get the model list for the current provider.
     pub(super) fn model_picker_models(&self) -> &[(&str, &str)] {
-        self.provider.as_ref().map_or(&[], |p| match p.provider_name() {
-            "bedrock" => &crate::tui::wizard::BEDROCK_MODELS,
-            _ => &crate::tui::wizard::OPENROUTER_MODELS,
-        })
+        self.provider
+            .as_ref()
+            .map_or(&[], |p| match p.provider_name() {
+                "bedrock" => &crate::tui::wizard::BEDROCK_MODELS,
+                _ => &crate::tui::wizard::OPENROUTER_MODELS,
+            })
     }
 
     /// Handle a key event while the model picker is active.
@@ -113,8 +115,7 @@ impl Chat {
             .collect();
 
         // 2 lines per model + 2 for border + 3 for title/footer padding.
-        let list_height =
-            u16::try_from(models.len() * 2).unwrap_or(20) + 5;
+        let list_height = u16::try_from(models.len() * 2).unwrap_or(20) + 5;
         let list_width = 64_u16;
 
         let popup_area = centered_popup(area, list_width, list_height);
@@ -164,7 +165,7 @@ impl Chat {
 ///
 /// Reads the existing config, updates `provider.model`, and writes it back.
 fn persist_model_choice(model_id: &str) -> anyhow::Result<()> {
-    use crate::config::{global_config_path, load_config, save_config, GlobalConfig};
+    use crate::config::{GlobalConfig, global_config_path, load_config, save_config};
 
     let path = global_config_path()?;
     let mut config: GlobalConfig = load_config(&path)?.unwrap_or_default();

@@ -94,7 +94,9 @@ impl Tool for ReadTool {
             .collect();
 
         if lines.is_empty() {
-            return Ok(format!("File has {total_lines} lines, nothing in requested range."));
+            return Ok(format!(
+                "File has {total_lines} lines, nothing in requested range."
+            ));
         }
 
         // Calculate line number width based on the highest line number we'll display
@@ -135,9 +137,18 @@ mod tests {
             })
             .await
             .unwrap();
-        assert!(result.contains("1\tfirst line"), "should have line 1: {result}");
-        assert!(result.contains("2\tsecond line"), "should have line 2: {result}");
-        assert!(result.contains("3\tthird line"), "should have line 3: {result}");
+        assert!(
+            result.contains("1\tfirst line"),
+            "should have line 1: {result}"
+        );
+        assert!(
+            result.contains("2\tsecond line"),
+            "should have line 2: {result}"
+        );
+        assert!(
+            result.contains("3\tthird line"),
+            "should have line 3: {result}"
+        );
     }
 
     #[tokio::test]
@@ -153,8 +164,14 @@ mod tests {
             .unwrap();
         // Should return only line 3 (offset 2 skips lines 1,2; limit 1 returns one line)
         assert!(result.contains("3\tline3"), "should have line 3: {result}");
-        assert!(!result.contains("line2"), "should not have line 2: {result}");
-        assert!(!result.contains("line4"), "should not have line 4: {result}");
+        assert!(
+            !result.contains("line2"),
+            "should not have line 2: {result}"
+        );
+        assert!(
+            !result.contains("line4"),
+            "should not have line 4: {result}"
+        );
     }
 
     #[tokio::test]
@@ -177,7 +194,11 @@ mod tests {
     #[tokio::test]
     async fn test_line_number_width_adjusts() {
         // Create a file with 100+ lines to force wider line numbers
-        let content: String = (1..=150).map(|i| format!("line {i}\n")).collect();
+        let content: String = (1..=150).fold(String::new(), |mut acc, i| {
+            use std::fmt::Write;
+            let _ = writeln!(acc, "line {i}");
+            acc
+        });
         let f = temp_file_with(&content);
         let result = ReadTool
             .call(ReadArgs {

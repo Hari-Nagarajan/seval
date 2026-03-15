@@ -1,10 +1,10 @@
 //! Draw methods and helper functions.
 
+use ratatui::Frame;
 use ratatui::layout::{Constraint, Flex, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
-use ratatui::Frame;
 
 use crate::chat::message::Role;
 
@@ -81,7 +81,11 @@ pub(super) fn render_user_message(text: &str) -> Vec<Line<'static>> {
 
 /// Check if a rendered line starts with a tool indicator (for compact stacking).
 fn is_tool_indicator_line(line: &Line<'_>) -> bool {
-    let text = line.spans.iter().map(|s| s.content.as_ref()).collect::<String>();
+    let text = line
+        .spans
+        .iter()
+        .map(|s| s.content.as_ref())
+        .collect::<String>();
     let trimmed = text.trim_start();
     trimmed.starts_with('\u{25cf}')  // ●
         || trimmed.starts_with('\u{2714}')  // ✔
@@ -102,8 +106,8 @@ impl Chat {
                 continue;
             };
 
-            let curr_is_tool = msg.role == Role::System
-                && rendered.first().is_some_and(is_tool_indicator_line);
+            let curr_is_tool =
+                msg.role == Role::System && rendered.first().is_some_and(is_tool_indicator_line);
 
             // Add spacing between messages, but skip between consecutive tool lines.
             if i > 0 && !(prev_is_tool && curr_is_tool) {
@@ -116,10 +120,8 @@ impl Chat {
 
         // If streaming or awaiting approval, show current streaming buffer content inline.
         // Strip raw tool call XML so it doesn't flash on screen during streaming.
-        if self.is_busy() && !self.streaming.buffer.is_empty()
-        {
-            let display_text =
-                super::tools::strip_tool_call_xml(&self.streaming.buffer);
+        if self.is_busy() && !self.streaming.buffer.is_empty() {
+            let display_text = super::tools::strip_tool_call_xml(&self.streaming.buffer);
             if !display_text.is_empty() {
                 if !lines.is_empty() {
                     lines.push(Line::from(""));
@@ -158,6 +160,7 @@ impl Chat {
     }
 
     /// Draw the full chat view (delegated from `Component::draw`).
+    #[allow(clippy::too_many_lines)]
     pub(super) fn draw_chat(&self, frame: &mut Frame, area: Rect) {
         // Layout: chat area | [thinking bar] | input area.
         let input_line_count = u16::try_from(self.input.lines().len().clamp(1, 5)).unwrap_or(5);
@@ -165,9 +168,9 @@ impl Chat {
         let thinking_height = u16::from(self.is_busy());
 
         let chunks = Layout::vertical([
-            Constraint::Min(1),                       // Chat messages area
-            Constraint::Length(thinking_height),       // Thinking indicator
-            Constraint::Length(input_height),          // Input area
+            Constraint::Min(1),                  // Chat messages area
+            Constraint::Length(thinking_height), // Thinking indicator
+            Constraint::Length(input_height),    // Input area
         ])
         .split(area);
 
@@ -225,7 +228,8 @@ impl Chat {
         // --- Thinking indicator bar ---
         if thinking_height > 0 {
             let elapsed = self
-                .streaming.started_at
+                .streaming
+                .started_at
                 .map(|t| format_elapsed(t.elapsed()))
                 .unwrap_or_default();
             let (verb, _) = self.streaming.thinking_verb;
@@ -269,8 +273,7 @@ impl Chat {
         frame.render_widget(input_paragraph, chunks[2]);
 
         // Set cursor position in input area (hidden during streaming/approval/picker).
-        if !self.is_busy() && !self.model_picker.active
-        {
+        if !self.is_busy() && !self.model_picker.active {
             let (cursor_line, cursor_col) = self.input.cursor_position();
             let cursor_x = chunks[2].x + 1 + u16::try_from(cursor_col).unwrap_or(0);
             let cursor_y = chunks[2].y + 1 + u16::try_from(cursor_line).unwrap_or(0);
@@ -337,7 +340,10 @@ mod tests {
             .map(|s| s.content.as_ref())
             .collect::<Vec<_>>()
             .join(" ");
-        assert!(text.contains("\u{2588}\u{2588}\u{2588}"), "should show ASCII logo");
+        assert!(
+            text.contains("\u{2588}\u{2588}\u{2588}"),
+            "should show ASCII logo"
+        );
         assert!(text.contains("/help"), "should mention /help");
     }
 }

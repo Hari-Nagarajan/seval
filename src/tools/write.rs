@@ -107,7 +107,10 @@ mod tests {
             })
             .await
             .unwrap();
-        assert!(result.contains("11 bytes"), "should report byte count: {result}");
+        assert!(
+            result.contains("11 bytes"),
+            "should report byte count: {result}"
+        );
         assert!(result.contains("test.txt"), "should report path: {result}");
         let content = std::fs::read_to_string(&path).unwrap();
         assert_eq!(content, "hello world");
@@ -142,7 +145,10 @@ mod tests {
             })
             .await
             .unwrap();
-        assert!(result.contains("11 bytes"), "should report byte count: {result}");
+        assert!(
+            result.contains("11 bytes"),
+            "should report byte count: {result}"
+        );
         let content = std::fs::read_to_string(&path).unwrap();
         assert_eq!(content, "new content");
     }

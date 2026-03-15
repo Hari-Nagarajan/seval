@@ -39,7 +39,10 @@ impl SlashCommand {
         }
         let mut parts = trimmed[1..].splitn(2, ' ');
         let cmd = parts.next()?;
-        let arg = parts.next().map(|s| s.trim().to_string()).filter(|s| !s.is_empty());
+        let arg = parts
+            .next()
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty());
 
         Some(match cmd {
             "model" => Self::Model(arg),
@@ -149,7 +152,7 @@ mod tests {
     fn parse_import_no_path_is_unknown() {
         match SlashCommand::parse("/import") {
             Some(SlashCommand::Unknown(_)) => {} // expected
-            other => panic!("Expected Unknown for /import without path, got {:?}", other),
+            other => panic!("Expected Unknown for /import without path, got {other:?}"),
         }
     }
 

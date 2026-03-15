@@ -25,10 +25,14 @@ pub enum EditError {
     #[error("Cannot read file: {0}")]
     FileError(String),
     /// The `old_text` was not found in the file.
-    #[error("old_text not found in {0}. Ensure the text matches exactly including whitespace and indentation.")]
+    #[error(
+        "old_text not found in {0}. Ensure the text matches exactly including whitespace and indentation."
+    )]
     NotFound(String),
     /// The `old_text` was found multiple times.
-    #[error("old_text found multiple times in {0}. Provide more surrounding context to make the match unique.")]
+    #[error(
+        "old_text found multiple times in {0}. Provide more surrounding context to make the match unique."
+    )]
     MultipleMatches(String),
     /// I/O error during file operations.
     #[error("I/O error: {0}")]
@@ -132,7 +136,10 @@ mod tests {
             })
             .await
             .unwrap();
-        assert!(result.contains("replaced 5 bytes with 4 bytes"), "result: {result}");
+        assert!(
+            result.contains("replaced 5 bytes with 4 bytes"),
+            "result: {result}"
+        );
         let content = std::fs::read_to_string(&path).unwrap();
         assert_eq!(content, "hello rust");
     }
@@ -149,7 +156,10 @@ mod tests {
             .await;
         assert!(result.is_err(), "should fail when text not found");
         let err = result.unwrap_err().to_string();
-        assert!(err.contains("not found"), "error should mention not found: {err}");
+        assert!(
+            err.contains("not found"),
+            "error should mention not found: {err}"
+        );
         assert!(
             err.contains("exactly"),
             "error should mention exact match: {err}"
@@ -214,12 +224,15 @@ mod tests {
         let required = def.parameters["required"]
             .as_array()
             .expect("required should be array");
-        let required_names: Vec<&str> = required
-            .iter()
-            .filter_map(|v| v.as_str())
-            .collect();
+        let required_names: Vec<&str> = required.iter().filter_map(|v| v.as_str()).collect();
         assert!(required_names.contains(&"path"), "path should be required");
-        assert!(required_names.contains(&"old_text"), "old_text should be required");
-        assert!(required_names.contains(&"new_text"), "new_text should be required");
+        assert!(
+            required_names.contains(&"old_text"),
+            "old_text should be required"
+        );
+        assert!(
+            required_names.contains(&"new_text"),
+            "new_text should be required"
+        );
     }
 }

@@ -59,35 +59,31 @@ impl Chat {
             None | Some("list") => {
                 // List sessions for current project.
                 let project = project_path();
-                tokio::task::spawn_blocking(move || {
-                    match db.list_sessions(Some(&project)) {
-                        Ok(sessions) => {
-                            if sessions.is_empty() {
-                                let _ = tx.send(Action::ShowSystemMessage(
-                                    "No saved sessions for this project.".to_string(),
-                                ));
-                            } else {
-                                let mut text = String::from("Saved sessions:\n");
-                                for s in &sessions {
-                                    let name = s.name.as_deref().unwrap_or("(untitled)");
-                                    let id_short = &s.id[..8.min(s.id.len())];
-                                    let _ = writeln!(
-                                        text,
-                                        "  {id_short}  {name}  ({} msgs, {})",
-                                        s.message_count, s.updated_at
-                                    );
-                                }
-                                text.push_str(
-                                    "\nUse /sessions resume <id> or /sessions delete <id>",
+                tokio::task::spawn_blocking(move || match db.list_sessions(Some(&project)) {
+                    Ok(sessions) => {
+                        if sessions.is_empty() {
+                            let _ = tx.send(Action::ShowSystemMessage(
+                                "No saved sessions for this project.".to_string(),
+                            ));
+                        } else {
+                            let mut text = String::from("Saved sessions:\n");
+                            for s in &sessions {
+                                let name = s.name.as_deref().unwrap_or("(untitled)");
+                                let id_short = &s.id[..8.min(s.id.len())];
+                                let _ = writeln!(
+                                    text,
+                                    "  {id_short}  {name}  ({} msgs, {})",
+                                    s.message_count, s.updated_at
                                 );
-                                let _ = tx.send(Action::ShowSystemMessage(text));
                             }
+                            text.push_str("\nUse /sessions resume <id> or /sessions delete <id>");
+                            let _ = tx.send(Action::ShowSystemMessage(text));
                         }
-                        Err(e) => {
-                            let _ = tx.send(Action::ShowSystemMessage(format!(
-                                "Error listing sessions: {e}"
-                            )));
-                        }
+                    }
+                    Err(e) => {
+                        let _ = tx.send(Action::ShowSystemMessage(format!(
+                            "Error listing sessions: {e}"
+                        )));
                     }
                 });
             }
@@ -112,9 +108,7 @@ impl Chat {
                                     _ => Role::System,
                                 };
                                 let mut cm = ChatMessage::new(role, &m.content);
-                                if let (Some(inp), Some(out)) =
-                                    (m.token_input, m.token_output)
-                                {
+                                if let (Some(inp), Some(out)) = (m.token_input, m.token_output) {
                                     #[allow(clippy::cast_sign_loss)]
                                     {
                                         cm.token_usage = Some(TokenUsage {
@@ -177,31 +171,26 @@ impl Chat {
         match sub {
             None | Some("list") => {
                 let project = project_path();
-                tokio::task::spawn_blocking(move || {
-                    match db.get_memories(&project) {
-                        Ok(memories) => {
-                            if memories.is_empty() {
-                                let _ = tx.send(Action::ShowSystemMessage(
-                                    "No saved memories for this project.".to_string(),
-                                ));
-                            } else {
-                                let mut text = String::from("Project memories:\n");
-                                for m in &memories {
-                                    let _ = writeln!(
-                                        text,
-                                        "  [{}] {} ({})",
-                                        m.id, m.content, m.created_at
-                                    );
-                                }
-                                text.push_str("\nUse /memory delete <id> to remove an entry.");
-                                let _ = tx.send(Action::ShowSystemMessage(text));
+                tokio::task::spawn_blocking(move || match db.get_memories(&project) {
+                    Ok(memories) => {
+                        if memories.is_empty() {
+                            let _ = tx.send(Action::ShowSystemMessage(
+                                "No saved memories for this project.".to_string(),
+                            ));
+                        } else {
+                            let mut text = String::from("Project memories:\n");
+                            for m in &memories {
+                                let _ =
+                                    writeln!(text, "  [{}] {} ({})", m.id, m.content, m.created_at);
                             }
+                            text.push_str("\nUse /memory delete <id> to remove an entry.");
+                            let _ = tx.send(Action::ShowSystemMessage(text));
                         }
-                        Err(e) => {
-                            let _ = tx.send(Action::ShowSystemMessage(format!(
-                                "Error listing memories: {e}"
-                            )));
-                        }
+                    }
+                    Err(e) => {
+                        let _ = tx.send(Action::ShowSystemMessage(format!(
+                            "Error listing memories: {e}"
+                        )));
                     }
                 });
             }
@@ -213,18 +202,14 @@ impl Chat {
                     )));
                     return;
                 };
-                tokio::task::spawn_blocking(move || {
-                    match db.delete_memory(id) {
-                        Ok(()) => {
-                            let _ = tx.send(Action::ShowSystemMessage(format!(
-                                "Memory {id} deleted."
-                            )));
-                        }
-                        Err(e) => {
-                            let _ = tx.send(Action::ShowSystemMessage(format!(
-                                "Error deleting memory: {e}"
-                            )));
-                        }
+                tokio::task::spawn_blocking(move || match db.delete_memory(id) {
+                    Ok(()) => {
+                        let _ = tx.send(Action::ShowSystemMessage(format!("Memory {id} deleted.")));
+                    }
+                    Err(e) => {
+                        let _ = tx.send(Action::ShowSystemMessage(format!(
+                            "Error deleting memory: {e}"
+                        )));
                     }
                 });
             }
@@ -289,8 +274,10 @@ impl Chat {
         };
 
         tokio::task::spawn_blocking(move || {
-            let export_dir = directories::BaseDirs::new()
-                .map_or_else(|| std::path::PathBuf::from("exports"), |b| b.home_dir().join(".seval").join("exports"));
+            let export_dir = directories::BaseDirs::new().map_or_else(
+                || std::path::PathBuf::from("exports"),
+                |b| b.home_dir().join(".seval").join("exports"),
+            );
             let output_path = export_dir.join(format!("{sid}.json"));
 
             match crate::session::import_export::export_seval_session(&db, &sid, &output_path) {

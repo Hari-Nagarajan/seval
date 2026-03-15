@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+#
+# pre-push hook — runs fmt, clippy, and tests before every push.
+# Install:  git config core.hooksPath .githooks
+# Skip:     git push --no-verify
+
+set -euo pipefail
+
+echo "==> pre-push: running rust quality gate..."
+./scripts/ci/rust_quality_gate.sh || {
+    echo "FAIL: rust quality gate failed."
+    exit 1
+}
+
+if [ "${SEVAL_STRICT_LINT:-0}" = "1" ]; then
+    echo "==> pre-push: running strict clippy warnings gate (SEVAL_STRICT_LINT=1)..."
+    ./scripts/ci/rust_quality_gate.sh --strict || {
+        echo "FAIL: strict clippy warnings gate reported issues."
+        exit 1
+    }
+fi
+
+if [ "${SEVAL_STRICT_DELTA_LINT:-0}" = "1" ]; then
+    echo "==> pre-push: running strict delta lint gate (SEVAL_STRICT_DELTA_LINT=1)..."
+    ./scripts/ci/rust_strict_delta_gate.sh || {
+        echo "FAIL: strict delta lint gate reported issues."
+        exit 1
+    }
+fi
+
+echo "==> pre-push: running tests..."
+cargo test || {
+    echo "FAIL: some tests did not pass."
+    exit 1
+}
+
+echo "==> pre-push: all checks passed."

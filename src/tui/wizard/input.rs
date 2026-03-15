@@ -8,7 +8,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use crate::action::Action;
 use crate::config::ProviderKind;
 
-use super::{Wizard, MODE_DESCRIPTIONS, PROVIDER_OPTIONS};
+use super::{MODE_DESCRIPTIONS, PROVIDER_OPTIONS, Wizard};
 
 impl Wizard {
     /// Handle key events during the `Provider` step.
@@ -16,7 +16,11 @@ impl Wizard {
         match key.code {
             KeyCode::Up | KeyCode::Char('k') => {
                 let i = self.provider_state.selected().unwrap_or(0);
-                let new = if i == 0 { PROVIDER_OPTIONS.len() - 1 } else { i - 1 };
+                let new = if i == 0 {
+                    PROVIDER_OPTIONS.len() - 1
+                } else {
+                    i - 1
+                };
                 self.provider_state.select(Some(new));
                 None
             }
@@ -170,7 +174,11 @@ impl Wizard {
         match key.code {
             KeyCode::Up | KeyCode::Char('k') => {
                 let i = self.approval_mode_state.selected().unwrap_or(0);
-                let new = if i == 0 { MODE_DESCRIPTIONS.len() - 1 } else { i - 1 };
+                let new = if i == 0 {
+                    MODE_DESCRIPTIONS.len() - 1
+                } else {
+                    i - 1
+                };
                 self.approval_mode_state.select(Some(new));
                 None
             }
@@ -200,7 +208,11 @@ impl Wizard {
             KeyCode::Up | KeyCode::Char('k') => {
                 if !self.deny_rules.is_empty() {
                     let i = self.deny_rule_state.selected().unwrap_or(0);
-                    let new = if i == 0 { self.deny_rules.len() - 1 } else { i - 1 };
+                    let new = if i == 0 {
+                        self.deny_rules.len() - 1
+                    } else {
+                        i - 1
+                    };
                     self.deny_rule_state.select(Some(new));
                 }
                 None

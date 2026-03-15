@@ -98,11 +98,9 @@ impl Tool for GlobTool {
 
         let pattern = args.pattern;
 
-        let result = tokio::task::spawn_blocking(move || {
-            glob_search(&pattern, &search_path)
-        })
-        .await
-        .map_err(|e| GlobError::SearchError(e.to_string()))??;
+        let result = tokio::task::spawn_blocking(move || glob_search(&pattern, &search_path))
+            .await
+            .map_err(|e| GlobError::SearchError(e.to_string()))??;
 
         Ok(result)
     }
@@ -121,10 +119,7 @@ fn glob_search(pattern: &str, path: &std::path::Path) -> Result<String, GlobErro
         if !entry.file_type().is_some_and(|ft| ft.is_file()) {
             continue;
         }
-        let rel_path = entry
-            .path()
-            .strip_prefix(path)
-            .unwrap_or(entry.path());
+        let rel_path = entry.path().strip_prefix(path).unwrap_or(entry.path());
 
         // Match against the relative path and just the filename
         if glob.is_match(rel_path) || glob.is_match(rel_path.file_name().unwrap_or_default()) {
@@ -224,7 +219,7 @@ mod tests {
             .unwrap();
         let lines: Vec<&str> = result.lines().collect();
         let mut sorted = lines.clone();
-        sorted.sort();
+        sorted.sort_unstable();
         assert_eq!(lines, sorted, "output should be sorted");
     }
 
@@ -248,10 +243,7 @@ mod tests {
         let required = def.parameters["required"]
             .as_array()
             .expect("required array");
-        let required_names: Vec<&str> = required
-            .iter()
-            .filter_map(|v| v.as_str())
-            .collect();
+        let required_names: Vec<&str> = required.iter().filter_map(|v| v.as_str()).collect();
         assert!(required_names.contains(&"pattern"), "pattern required");
         assert!(required_names.contains(&"path"), "path required");
     }

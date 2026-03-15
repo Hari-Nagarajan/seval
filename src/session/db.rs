@@ -106,11 +106,7 @@ impl Database {
     }
 
     /// Create a new session in the database.
-    pub fn create_session(
-        &self,
-        project_path: &str,
-        model: Option<&str>,
-    ) -> Result<SessionRecord> {
+    pub fn create_session(&self, project_path: &str, model: Option<&str>) -> Result<SessionRecord> {
         let id = uuid::Uuid::new_v4().to_string();
         let conn = self.conn();
         conn.execute(
@@ -174,7 +170,14 @@ impl Database {
         conn.execute(
             "INSERT INTO tool_calls (message_id, name, args_json, result_text, status, duration_ms)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            params![message_id, name, args_json, result_text, status, duration_ms],
+            params![
+                message_id,
+                name,
+                args_json,
+                result_text,
+                status,
+                duration_ms
+            ],
         )?;
         Ok(conn.last_insert_rowid())
     }
@@ -344,15 +347,19 @@ fn run_migrations(conn: &Connection) -> Result<()> {
             version INTEGER PRIMARY KEY
         )",
     )?;
-    let current: i64 =
-        conn.query_row("SELECT COALESCE(MAX(version), 0) FROM schema_version", [], |r| {
-            r.get(0)
-        })?;
+    let current: i64 = conn.query_row(
+        "SELECT COALESCE(MAX(version), 0) FROM schema_version",
+        [],
+        |r| r.get(0),
+    )?;
     for (i, sql) in MIGRATIONS.iter().enumerate() {
         let ver = i64::try_from(i + 1).unwrap_or(0);
         if ver > current {
             conn.execute_batch(sql)?;
-            conn.execute("INSERT INTO schema_version (version) VALUES (?1)", params![ver])?;
+            conn.execute(
+                "INSERT INTO schema_version (version) VALUES (?1)",
+                params![ver],
+            )?;
         }
     }
     Ok(())
@@ -365,7 +372,9 @@ mod tests {
     #[test]
     fn create_session_returns_valid_record() {
         let db = Database::open_in_memory().unwrap();
-        let session = db.create_session("/tmp/project", Some("claude-sonnet")).unwrap();
+        let session = db
+            .create_session("/tmp/project", Some("claude-sonnet"))
+            .unwrap();
         assert!(!session.id.is_empty());
         assert_eq!(session.project_path, "/tmp/project");
         assert_eq!(session.model.as_deref(), Some("claude-sonnet"));
@@ -400,7 +409,14 @@ mod tests {
             .save_message(&session.id, "assistant", "let me check", None, None)
             .unwrap();
         let tc_id = db
-            .save_tool_call(msg_id, "shell", r#"{"command":"ls"}"#, Some("file.txt"), "success", Some(42))
+            .save_tool_call(
+                msg_id,
+                "shell",
+                r#"{"command":"ls"}"#,
+                Some("file.txt"),
+                "success",
+                Some(42),
+            )
             .unwrap();
         assert!(tc_id > 0);
 
@@ -415,9 +431,7 @@ mod tests {
     fn list_sessions_ordered_by_updated_desc_limited_to_20() {
         let db = Database::open_in_memory().unwrap();
         for i in 0..25 {
-            let s = db
-                .create_session(&format!("/project/{i}"), None)
-                .unwrap();
+            let s = db.create_session(&format!("/project/{i}"), None).unwrap();
             // Add a message to update the timestamp (so ordering is deterministic).
             db.save_message(&s.id, "user", &format!("msg {i}"), None, None)
                 .unwrap();
@@ -453,8 +467,15 @@ mod tests {
         let m2 = db
             .save_message(&session.id, "assistant", "second", Some(100), Some(50))
             .unwrap();
-        db.save_tool_call(m2, "shell", r#"{"cmd":"ls"}"#, Some("ok"), "success", Some(10))
-            .unwrap();
+        db.save_tool_call(
+            m2,
+            "shell",
+            r#"{"cmd":"ls"}"#,
+            Some("ok"),
+            "success",
+            Some(10),
+        )
+        .unwrap();
 
         let messages = db.get_session_messages(&session.id).unwrap();
         assert_eq!(messages.len(), 2);
@@ -513,7 +534,11 @@ mod tests {
     fn save_memory_inserts_row_with_correct_fields() {
         let db = Database::open_in_memory().unwrap();
         let id = db
-            .save_memory("/tmp/project", "Found SSH key at /home/user/.ssh/id_rsa", "auto")
+            .save_memory(
+                "/tmp/project",
+                "Found SSH key at /home/user/.ssh/id_rsa",
+                "auto",
+            )
             .unwrap();
         assert!(id > 0);
 
@@ -548,8 +573,7 @@ mod tests {
     #[test]
     fn get_memories_returns_empty_for_unknown_project() {
         let db = Database::open_in_memory().unwrap();
-        db.save_memory("/tmp/project", "Something", "auto")
-            .unwrap();
+        db.save_memory("/tmp/project", "Something", "auto").unwrap();
 
         let memories = db.get_memories("/unknown/path").unwrap();
         assert!(memories.is_empty());
@@ -558,9 +582,7 @@ mod tests {
     #[test]
     fn delete_memory_removes_specific_entry() {
         let db = Database::open_in_memory().unwrap();
-        let id1 = db
-            .save_memory("/tmp/project", "Keep this", "auto")
-            .unwrap();
+        let id1 = db.save_memory("/tmp/project", "Keep this", "auto").unwrap();
         let id2 = db
             .save_memory("/tmp/project", "Delete this", "auto")
             .unwrap();

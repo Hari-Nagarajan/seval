@@ -105,13 +105,11 @@ impl Tool for ShellTool {
             .stderr(std::process::Stdio::piped())
             .output();
 
-        let output = tokio::time::timeout(
-            std::time::Duration::from_secs(timeout_secs),
-            output_future,
-        )
-        .await
-        .map_err(|_| ShellError::Timeout(timeout_secs))?
-        .map_err(|e| ShellError::SpawnError(e.to_string()))?;
+        let output =
+            tokio::time::timeout(std::time::Duration::from_secs(timeout_secs), output_future)
+                .await
+                .map_err(|_| ShellError::Timeout(timeout_secs))?
+                .map_err(|e| ShellError::SpawnError(e.to_string()))?;
 
         let exit_code = output.status.code().unwrap_or(-1);
         let stdout = String::from_utf8_lossy(&output.stdout);
@@ -169,10 +167,7 @@ mod tests {
             })
             .await
             .unwrap();
-        assert!(
-            result.contains("error_output"),
-            "stderr should be captured"
-        );
+        assert!(result.contains("error_output"), "stderr should be captured");
         assert!(result.contains("STDERR:"), "should have STDERR section");
     }
 
@@ -224,9 +219,7 @@ mod tests {
             .as_array()
             .expect("required should be array");
         assert!(
-            required
-                .iter()
-                .any(|v| v.as_str() == Some("command")),
+            required.iter().any(|v| v.as_str() == Some("command")),
             "command should be required"
         );
         assert!(
@@ -245,14 +238,8 @@ mod tests {
             })
             .await
             .unwrap();
-        assert!(
-            result.contains("stdout_data"),
-            "should capture stdout"
-        );
-        assert!(
-            result.contains("stderr_data"),
-            "should capture stderr"
-        );
+        assert!(result.contains("stdout_data"), "should capture stdout");
+        assert!(result.contains("stderr_data"), "should capture stderr");
         assert!(result.contains("Exit code: 0"), "should succeed");
     }
 

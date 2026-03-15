@@ -95,11 +95,7 @@ pub fn render_markdown(input: &str) -> Vec<Line<'static>> {
             Event::End(TagEnd::CodeBlock) => {
                 in_code_block = false;
                 flush_spans(&mut current_spans, &mut lines);
-                render_code_block(
-                    &code_block_lang,
-                    &code_block_content,
-                    &mut lines,
-                );
+                render_code_block(&code_block_lang, &code_block_content, &mut lines);
                 code_block_content.clear();
                 code_block_lang.clear();
             }
@@ -131,11 +127,7 @@ pub fn render_markdown(input: &str) -> Vec<Line<'static>> {
             Event::Start(Tag::Link { dest_url, .. }) => {
                 link_url = dest_url.to_string();
                 let current = current_style(&style_stack);
-                style_stack.push(
-                    current
-                        .fg(Color::Blue)
-                        .add_modifier(Modifier::UNDERLINED),
-                );
+                style_stack.push(current.fg(Color::Blue).add_modifier(Modifier::UNDERLINED));
             }
 
             Event::End(TagEnd::Link) => {
@@ -407,11 +399,6 @@ mod tests {
             .find(|s| s.content.as_ref() == "link")
             .expect("should have link span");
         assert_eq!(link_span.style.fg, Some(Color::Blue));
-        assert!(
-            link_span
-                .style
-                .add_modifier
-                .contains(Modifier::UNDERLINED)
-        );
+        assert!(link_span.style.add_modifier.contains(Modifier::UNDERLINED));
     }
 }

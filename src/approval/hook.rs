@@ -1,6 +1,6 @@
 use std::collections::HashSet;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use rig::agent::{HookAction, PromptHook, ToolCallHookAction};
 use rig::completion::CompletionModel;
@@ -223,9 +223,7 @@ impl<M: CompletionModel> PromptHook<M> for ApprovalHook {
 
         match response_rx.await {
             Ok(ApprovalDecision::Approve) => ToolCallHookAction::Continue,
-            Ok(ApprovalDecision::Deny) => {
-                ToolCallHookAction::skip("Tool execution denied by user")
-            }
+            Ok(ApprovalDecision::Deny) => ToolCallHookAction::skip("Tool execution denied by user"),
             Ok(ApprovalDecision::ApproveAll) => {
                 let mut approved = self.approved_all.lock().await;
                 approved.insert(tool_name.to_string());
@@ -235,11 +233,7 @@ impl<M: CompletionModel> PromptHook<M> for ApprovalHook {
         }
     }
 
-    async fn on_completion_call(
-        &self,
-        _prompt: &Message,
-        _history: &[Message],
-    ) -> HookAction {
+    async fn on_completion_call(&self, _prompt: &Message, _history: &[Message]) -> HookAction {
         self.turn_counter.fetch_add(1, Ordering::Relaxed);
         HookAction::cont()
     }

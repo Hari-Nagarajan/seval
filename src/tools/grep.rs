@@ -125,8 +125,7 @@ fn grep_search(
     path: &std::path::Path,
     file_glob: Option<&str>,
 ) -> Result<String, GrepError> {
-    let re =
-        regex::Regex::new(pattern).map_err(|e| GrepError::InvalidRegex(e.to_string()))?;
+    let re = regex::Regex::new(pattern).map_err(|e| GrepError::InvalidRegex(e.to_string()))?;
 
     let mut builder = ignore::WalkBuilder::new(path);
     builder.hidden(false).git_ignore(true);
@@ -154,15 +153,11 @@ fn grep_search(
             continue; // Skip binary/unreadable files
         };
         // Build relative path for display
-        let display_path = entry
-            .path()
-            .strip_prefix(path)
-            .unwrap_or(entry.path());
+        let display_path = entry.path().strip_prefix(path).unwrap_or(entry.path());
 
         for (i, line) in content.lines().enumerate() {
             if re.is_match(line) {
-                let result_line =
-                    format!("{}:{}:{}", display_path.display(), i + 1, line);
+                let result_line = format!("{}:{}:{}", display_path.display(), i + 1, line);
                 total_bytes += result_line.len() + 1; // +1 for newline
                 results.push(result_line);
 
@@ -189,11 +184,21 @@ mod tests {
 
     fn setup_test_dir() -> TempDir {
         let dir = TempDir::new().unwrap();
-        fs::write(dir.path().join("hello.rs"), "fn main() {\n    println!(\"hello world\");\n}\n")
-            .unwrap();
-        fs::write(dir.path().join("lib.rs"), "pub fn greet() {\n    println!(\"hi\");\n}\n")
-            .unwrap();
-        fs::write(dir.path().join("notes.txt"), "some notes\nhello from notes\n").unwrap();
+        fs::write(
+            dir.path().join("hello.rs"),
+            "fn main() {\n    println!(\"hello world\");\n}\n",
+        )
+        .unwrap();
+        fs::write(
+            dir.path().join("lib.rs"),
+            "pub fn greet() {\n    println!(\"hi\");\n}\n",
+        )
+        .unwrap();
+        fs::write(
+            dir.path().join("notes.txt"),
+            "some notes\nhello from notes\n",
+        )
+        .unwrap();
         dir
     }
 
@@ -298,7 +303,10 @@ mod tests {
         let line = result.lines().next().unwrap();
         let parts: Vec<&str> = line.splitn(3, ':').collect();
         assert_eq!(parts.len(), 3, "should have file:line:content format");
-        assert!(parts[1].parse::<usize>().is_ok(), "second part should be line number");
+        assert!(
+            parts[1].parse::<usize>().is_ok(),
+            "second part should be line number"
+        );
     }
 
     #[tokio::test]
@@ -309,11 +317,11 @@ mod tests {
         let required = def.parameters["required"]
             .as_array()
             .expect("required array");
-        let required_names: Vec<&str> = required
-            .iter()
-            .filter_map(|v| v.as_str())
-            .collect();
-        assert!(required_names.contains(&"pattern"), "pattern should be required");
+        let required_names: Vec<&str> = required.iter().filter_map(|v| v.as_str()).collect();
+        assert!(
+            required_names.contains(&"pattern"),
+            "pattern should be required"
+        );
         assert!(required_names.contains(&"path"), "path should be required");
     }
 }

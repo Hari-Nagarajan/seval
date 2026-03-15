@@ -86,7 +86,9 @@ mod tests {
 
     #[test]
     fn test_truncation_preserves_head_and_tail() {
-        let input: String = (0..1000).map(|i| char::from(b'A' + (i % 26) as u8)).collect();
+        let input: String = (0..1000)
+            .map(|i| char::from(b'A' + u8::try_from(i % 26).unwrap()))
+            .collect();
         let result = truncate_output(&input, 200);
         // Head should start with same chars
         assert!(result.starts_with(&input[..10]));

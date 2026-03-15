@@ -55,11 +55,7 @@ impl AiProvider {
                     .as_ref()
                     .context("Bedrock secret access key is required. Set it in ~/.seval/config.toml under [bedrock] secret_access_key")?
                     .clone();
-                let region = bedrock
-                    .region
-                    .as_deref()
-                    .unwrap_or("us-east-1")
-                    .to_string();
+                let region = bedrock.region.as_deref().unwrap_or("us-east-1").to_string();
 
                 let sdk_config = aws_config::defaults(BehaviorVersion::latest())
                     .credentials_provider(aws_sdk_bedrockruntime::config::Credentials::new(

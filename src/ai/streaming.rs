@@ -157,9 +157,9 @@ where
 
         while let Some(item) = stream.next().await {
             match item {
-                Ok(MultiTurnStreamItem::StreamAssistantItem(
-                    StreamedAssistantContent::Text(text),
-                )) => {
+                Ok(MultiTurnStreamItem::StreamAssistantItem(StreamedAssistantContent::Text(
+                    text,
+                ))) => {
                     let _ = tx.send(Action::StreamChunk(text.text));
                 }
                 Ok(MultiTurnStreamItem::StreamAssistantItem(
@@ -172,17 +172,12 @@ where
                     let args_json = tool_call.function.arguments.to_string();
                     tool_call_names
                         .insert(internal_call_id, (name.clone(), std::time::Instant::now()));
-                    let _ = tx.send(Action::ToolCallStart {
-                        name,
-                        args_json,
-                    });
+                    let _ = tx.send(Action::ToolCallStart { name, args_json });
                 }
-                Ok(MultiTurnStreamItem::StreamUserItem(
-                    StreamedUserContent::ToolResult {
-                        tool_result,
-                        internal_call_id,
-                    },
-                )) => {
+                Ok(MultiTurnStreamItem::StreamUserItem(StreamedUserContent::ToolResult {
+                    tool_result,
+                    internal_call_id,
+                })) => {
                     let (name, start_time) = tool_call_names
                         .remove(&internal_call_id)
                         .unwrap_or_else(|| ("unknown".to_string(), std::time::Instant::now()));
@@ -215,9 +210,9 @@ where
                         duration_ms,
                     });
                 }
-                Ok(MultiTurnStreamItem::StreamAssistantItem(
-                    StreamedAssistantContent::Final(ref res),
-                )) => {
+                Ok(MultiTurnStreamItem::StreamAssistantItem(StreamedAssistantContent::Final(
+                    ref res,
+                ))) => {
                     // Accumulate per-turn token usage from each Final event.
                     if let Some(usage) = res.token_usage() {
                         input_tokens += usage.input_tokens;
@@ -282,7 +277,9 @@ fn format_error(error: &str) -> String {
         || lower.contains("authentication")
         || lower.contains("invalid.*key")
     {
-        format!("Authentication failed: check your API key in ~/.seval/config.toml. Original error: {error}")
+        format!(
+            "Authentication failed: check your API key in ~/.seval/config.toml. Original error: {error}"
+        )
     } else {
         error.to_string()
     }

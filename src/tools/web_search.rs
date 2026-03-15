@@ -121,10 +121,7 @@ impl Tool for WebSearchTool {
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
-        let api_key = self
-            .api_key
-            .as_ref()
-            .ok_or(WebSearchError::NoApiKey)?;
+        let api_key = self.api_key.as_ref().ok_or(WebSearchError::NoApiKey)?;
 
         let count = args.count.unwrap_or(DEFAULT_RESULT_COUNT).min(20);
 
@@ -137,10 +134,7 @@ impl Tool for WebSearchTool {
             .get(BRAVE_SEARCH_URL)
             .header("X-Subscription-Token", api_key)
             .header("Accept", "application/json")
-            .query(&[
-                ("q", args.query.as_str()),
-                ("count", &count.to_string()),
-            ])
+            .query(&[("q", args.query.as_str()), ("count", &count.to_string())])
             .send()
             .await
             .map_err(|e| WebSearchError::RequestError(e.to_string()))?;
@@ -157,10 +151,7 @@ impl Tool for WebSearchTool {
             .await
             .map_err(|e| WebSearchError::ParseError(e.to_string()))?;
 
-        let results = brave_response
-            .web
-            .map(|w| w.results)
-            .unwrap_or_default();
+        let results = brave_response.web.map(|w| w.results).unwrap_or_default();
 
         if results.is_empty() {
             return Ok("No results found.".to_string());
@@ -231,7 +222,10 @@ mod tests {
             err.contains("Brave Search API key not configured"),
             "got: {err}"
         );
-        assert!(err.contains("config.toml"), "should mention config file, got: {err}");
+        assert!(
+            err.contains("config.toml"),
+            "should mention config file, got: {err}"
+        );
     }
 
     #[test]

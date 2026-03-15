@@ -13,9 +13,8 @@ use super::component::Chat;
 use super::rendering::{display_tool_name, tool_color};
 
 /// Regex to strip raw tool call XML that some models emit as text.
-static TOOL_CALL_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?s)<tool_call>.*?</tool_call>").expect("valid regex")
-});
+static TOOL_CALL_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?s)<tool_call>.*?</tool_call>").expect("valid regex"));
 
 /// Strip `<tool_call>...</tool_call>` blocks (complete and incomplete) and
 /// clean up leftover whitespace.
@@ -24,10 +23,10 @@ pub(super) fn strip_tool_call_xml(text: &str) -> String {
     // Also strip incomplete/trailing `<tool_call>...` without closing tag
     // (happens during streaming before the full tag arrives).
     let cleaned = if let Some(idx) = cleaned.rfind("<tool_call>") {
-        if !cleaned[idx..].contains("</tool_call>") {
-            &cleaned[..idx]
-        } else {
+        if cleaned[idx..].contains("</tool_call>") {
             &cleaned
+        } else {
+            &cleaned[..idx]
         }
     } else {
         &cleaned
@@ -75,10 +74,7 @@ impl Chat {
 
         let content = format!("\u{25cf} {display_name} {detail}");
         let mut spans = vec![
-            Span::styled(
-                "  \u{25cf} ",
-                Style::default().fg(color),
-            ),
+            Span::styled("  \u{25cf} ", Style::default().fg(color)),
             Span::styled(
                 display_name,
                 Style::default().fg(color).add_modifier(Modifier::BOLD),
@@ -101,14 +97,8 @@ impl Chat {
         let display_name = display_tool_name(name);
         let content = format!("\u{2714} {display_name} ({duration_ms}ms)");
         let rendered = vec![Line::from(vec![
-            Span::styled(
-                "  \u{2714} ",
-                Style::default().fg(Color::Green),
-            ),
-            Span::styled(
-                display_name,
-                Style::default().fg(Color::Green),
-            ),
+            Span::styled("  \u{2714} ", Style::default().fg(Color::Green)),
+            Span::styled(display_name, Style::default().fg(Color::Green)),
             Span::styled(
                 format!(" ({duration_ms}ms)"),
                 Style::default().fg(Color::DarkGray),
@@ -136,18 +126,12 @@ impl Chat {
 
         let content = format!("\u{2718} {display_name}: {brief}");
         let rendered = vec![Line::from(vec![
-            Span::styled(
-                "  \u{2718} ",
-                Style::default().fg(Color::Red),
-            ),
+            Span::styled("  \u{2718} ", Style::default().fg(Color::Red)),
             Span::styled(
                 format!("{display_name}: "),
                 Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
             ),
-            Span::styled(
-                brief,
-                Style::default().fg(Color::Red),
-            ),
+            Span::styled(brief, Style::default().fg(Color::Red)),
         ])];
         let msg = ChatMessage::new(Role::System, content);
         self.messages.push(msg);

@@ -104,9 +104,7 @@ impl App {
         // Load project memories and inject into system prompt.
         if let Some(db) = chat.db().cloned() {
             let project = crate::chat::component::project_path();
-            match tokio::task::spawn_blocking(move || db.get_memories(&project))
-                .await
-            {
+            match tokio::task::spawn_blocking(move || db.get_memories(&project)).await {
                 Ok(Ok(memories)) if !memories.is_empty() => {
                     let contents: Vec<String> =
                         memories.iter().map(|m| m.content.clone()).collect();
@@ -207,11 +205,10 @@ impl App {
         // Set up Unix signal handlers.
         let mut sigterm =
             tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
-        let mut sigint =
-            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::interrupt())?;
-        let mut sigcont = tokio::signal::unix::signal(
-            tokio::signal::unix::SignalKind::from_raw(signal_hook::consts::SIGCONT),
-        )?;
+        let mut sigint = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::interrupt())?;
+        let mut sigcont = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::from_raw(
+            signal_hook::consts::SIGCONT,
+        ))?;
 
         // 30fps render interval for smooth streaming display.
         let mut render_interval = tokio::time::interval(RENDER_INTERVAL);
@@ -426,9 +423,7 @@ impl App {
                 let warning = Paragraph::new(vec![
                     Line::from(Span::styled(
                         "Terminal too small",
-                        Style::default()
-                            .fg(Color::Red)
-                            .add_modifier(Modifier::BOLD),
+                        Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
                     )),
                     Line::from(""),
                     Line::from(format!("Current: {w}x{h}")),
@@ -462,18 +457,12 @@ impl App {
                 let area = frame.area();
 
                 // Vertical split: content area + status bar.
-                let outer = Layout::vertical([
-                    Constraint::Min(1),
-                    Constraint::Length(1),
-                ])
-                .split(area);
+                let outer =
+                    Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).split(area);
 
                 // Horizontal split: chat pane + sidebar.
-                let inner = Layout::horizontal([
-                    Constraint::Min(40),
-                    Constraint::Length(28),
-                ])
-                .split(outer[0]);
+                let inner = Layout::horizontal([Constraint::Min(40), Constraint::Length(28)])
+                    .split(outer[0]);
 
                 // Draw chat pane.
                 if let Some(chat) = chat
@@ -488,7 +477,14 @@ impl App {
                 }
 
                 // Draw status bar.
-                render_status_bar(frame, outer[1], chat, approval_mode, turn_info, context_usage);
+                render_status_bar(
+                    frame,
+                    outer[1],
+                    chat,
+                    approval_mode,
+                    turn_info,
+                    context_usage,
+                );
             })?;
         }
         Ok(())
@@ -523,7 +519,7 @@ fn render_status_bar(
             (
                 chat.provider_display(),
                 chat.message_count(),
-                chat.total_tokens(),
+                chat.output_tokens(),
                 chat.is_streaming(),
                 chat.spinner_frame(),
             )
@@ -552,7 +548,11 @@ fn render_status_bar(
 
     let (ctx_used, ctx_max) = context_usage;
     let context_str = if ctx_max > 0 {
-        #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        #[allow(
+            clippy::cast_precision_loss,
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss
+        )]
         let pct = (ctx_used as f64 / ctx_max as f64 * 100.0).round() as u64;
         format!(
             "{}/{} ({}%)",
@@ -581,18 +581,9 @@ fn render_status_bar(
     };
 
     let status_line = Line::from(vec![
-        Span::styled(
-            left,
-            Style::default().fg(Color::White).bg(Color::DarkGray),
-        ),
-        Span::styled(
-            " ".repeat(padding),
-            Style::default().bg(Color::DarkGray),
-        ),
-        Span::styled(
-            right,
-            Style::default().fg(Color::White).bg(Color::DarkGray),
-        ),
+        Span::styled(left, Style::default().fg(Color::White).bg(Color::DarkGray)),
+        Span::styled(" ".repeat(padding), Style::default().bg(Color::DarkGray)),
+        Span::styled(right, Style::default().fg(Color::White).bg(Color::DarkGray)),
     ]);
 
     frame.render_widget(Paragraph::new(status_line), area);

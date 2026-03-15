@@ -8,7 +8,7 @@
 use std::fmt::Write;
 use std::sync::Arc;
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use rig::client::CompletionClient;
 use rig::completion::Prompt;
 use tokio::sync::mpsc::UnboundedSender;
@@ -136,17 +136,11 @@ pub async fn compress_conversation(
 
     let summary: String = match provider {
         AiProvider::Bedrock { client, model } => {
-            let agent = client
-                .agent(model)
-                .max_tokens(max_tokens)
-                .build();
+            let agent = client.agent(model).max_tokens(max_tokens).build();
             agent.prompt(&prompt).await?
         }
         AiProvider::OpenRouter { client, model } => {
-            let agent = client
-                .agent(model)
-                .max_tokens(max_tokens)
-                .build();
+            let agent = client.agent(model).max_tokens(max_tokens).build();
             agent.prompt(&prompt).await?
         }
     };

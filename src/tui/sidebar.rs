@@ -9,11 +9,11 @@ use std::collections::VecDeque;
 use std::time::Instant;
 
 use anyhow::Result;
+use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph};
-use ratatui::Frame;
 
 use crate::tui::Component;
 
@@ -389,8 +389,12 @@ pub fn short_path(path: &str) -> String {
         return path.to_string();
     }
     // Show last 2 components: parent/file
-    let parent = components[components.len() - 2].as_os_str().to_string_lossy();
-    let file = components[components.len() - 1].as_os_str().to_string_lossy();
+    let parent = components[components.len() - 2]
+        .as_os_str()
+        .to_string_lossy();
+    let file = components[components.len() - 1]
+        .as_os_str()
+        .to_string_lossy();
     format!("{parent}/{file}")
 }
 
@@ -590,9 +594,6 @@ mod tests {
 
     #[test]
     fn test_short_path_long() {
-        assert_eq!(
-            short_path("/home/user/project/src/main.rs"),
-            "src/main.rs"
-        );
+        assert_eq!(short_path("/home/user/project/src/main.rs"), "src/main.rs");
     }
 }

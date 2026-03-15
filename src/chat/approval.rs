@@ -21,10 +21,7 @@ impl Chat {
         let mut lines = vec![
             Line::from(""),
             Line::from(vec![
-                Span::styled(
-                    "  \u{25cf} ",
-                    Style::default().fg(color),
-                ),
+                Span::styled("  \u{25cf} ", Style::default().fg(color)),
                 Span::styled(
                     display_name,
                     Style::default().fg(color).add_modifier(Modifier::BOLD),
@@ -41,13 +38,31 @@ impl Chat {
         lines.push(Line::from(""));
         lines.push(Line::from(vec![
             Span::styled("  Allow?  ", Style::default().fg(Color::DarkGray)),
-            Span::styled("[Y]", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "[Y]",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::styled("es  ", Style::default().fg(Color::Green)),
-            Span::styled("[N]", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "[N]",
+                Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+            ),
             Span::styled("o  ", Style::default().fg(Color::Red)),
-            Span::styled("[A]", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "[A]",
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::styled("ll  ", Style::default().fg(Color::Cyan)),
-            Span::styled("[Esc]", Style::default().fg(Color::DarkGray).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "[Esc]",
+                Style::default()
+                    .fg(Color::DarkGray)
+                    .add_modifier(Modifier::BOLD),
+            ),
         ]));
 
         let msg = ChatMessage::new(Role::System, content);
@@ -65,7 +80,11 @@ impl Chat {
     ///
     /// Returns `Some(Action)` only for quit; other decisions are side effects.
     pub(super) fn handle_approval_key(&mut self, key: KeyEvent) -> Option<Action> {
-        if let ChatState::AwaitingApproval { ref mut response_tx, ref tool_name } = self.streaming.chat_state {
+        if let ChatState::AwaitingApproval {
+            ref mut response_tx,
+            ref tool_name,
+        } = self.streaming.chat_state
+        {
             match key.code {
                 KeyCode::Char('y' | 'Y') => {
                     if let Some(tx) = response_tx.take() {
@@ -107,10 +126,7 @@ impl Chat {
         let display_name = display_tool_name(name);
         let content = format!("\u{2718} {display_name} denied");
         let rendered = vec![Line::from(vec![
-            Span::styled(
-                "  \u{2718} ",
-                Style::default().fg(Color::Red),
-            ),
+            Span::styled("  \u{2718} ", Style::default().fg(Color::Red)),
             Span::styled(
                 format!("{display_name} denied"),
                 Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
@@ -124,9 +140,9 @@ impl Chat {
 
 #[cfg(test)]
 mod tests {
-    use crate::approval::ApprovalRequest;
     use crate::action::Action;
     use crate::approval::ApprovalDecision;
+    use crate::approval::ApprovalRequest;
     use crate::tui::Component;
     use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
@@ -146,7 +162,13 @@ mod tests {
         chat.receive_approval_request(request);
         assert!(chat.is_awaiting_approval());
         // Should have added an approval block message
-        assert!(chat.messages.last().unwrap().content.contains("\u{25cf} Shell"));
+        assert!(
+            chat.messages
+                .last()
+                .unwrap()
+                .content
+                .contains("\u{25cf} Shell")
+        );
     }
 
     #[tokio::test]
@@ -230,7 +252,11 @@ mod tests {
         // Oneshot sender was dropped, receiver gets error
         assert!(rx.await.is_err());
         // Should have cancellation message
-        assert!(chat.messages.iter().any(|m| m.content.contains("cancelled")));
+        assert!(
+            chat.messages
+                .iter()
+                .any(|m| m.content.contains("cancelled"))
+        );
     }
 
     #[tokio::test]

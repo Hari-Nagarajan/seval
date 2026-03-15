@@ -5,8 +5,8 @@ use tempfile::TempDir;
 
 use seval::cli::{Cli, Commands};
 use seval::config::{
-    save_config, AppConfig, ApprovalMode, AwsConfig, GlobalConfig, ProjectConfig,
-    ProjectToolsConfig, ToolsConfig,
+    AppConfig, ApprovalMode, AwsConfig, GlobalConfig, ProjectConfig, ProjectToolsConfig,
+    ToolsConfig, save_config,
 };
 
 #[test]
@@ -29,8 +29,9 @@ fn global_config_round_trip() {
     };
 
     save_config(&config, &path).unwrap();
-    let loaded: GlobalConfig =
-        seval::config::load_config(&path).unwrap().expect("config should exist");
+    let loaded: GlobalConfig = seval::config::load_config(&path)
+        .unwrap()
+        .expect("config should exist");
     assert_eq!(config, loaded);
 }
 
@@ -52,8 +53,9 @@ fn project_config_round_trip() {
     };
 
     save_config(&config, &path).unwrap();
-    let loaded: ProjectConfig =
-        seval::config::load_config(&path).unwrap().expect("config should exist");
+    let loaded: ProjectConfig = seval::config::load_config(&path)
+        .unwrap()
+        .expect("config should exist");
     assert_eq!(config, loaded);
 }
 
@@ -182,8 +184,12 @@ fn cli_parses_approval_mode() {
 
 #[test]
 fn cli_parses_model_flag() {
-    let cli = Cli::try_parse_from(["seval", "--model", "anthropic.claude-sonnet-4-20250514"]).unwrap();
-    assert_eq!(cli.model.as_deref(), Some("anthropic.claude-sonnet-4-20250514"));
+    let cli =
+        Cli::try_parse_from(["seval", "--model", "anthropic.claude-sonnet-4-20250514"]).unwrap();
+    assert_eq!(
+        cli.model.as_deref(),
+        Some("anthropic.claude-sonnet-4-20250514")
+    );
 }
 
 #[test]

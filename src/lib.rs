@@ -1,7 +1,7 @@
 pub mod action;
 pub mod ai;
-pub mod approval;
 pub mod app;
+pub mod approval;
 pub mod chat;
 pub mod cli;
 pub mod colors;

@@ -5,17 +5,17 @@
 //! handles user input, and renders the chat view with 30fps buffered display.
 
 use std::cell::Cell;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Instant;
 
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::ListState;
-use ratatui::Frame;
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::action::Action;
@@ -27,14 +27,14 @@ use crate::chat::commands::SlashCommand;
 use crate::chat::context::ContextState;
 use crate::chat::input::ChatInput;
 use crate::chat::markdown::render_markdown;
+use crate::chat::message::{ChatMessage, NEXT_ID, Role, TokenUsage};
 use crate::chat::verbs::random_thinking_verb;
-use crate::chat::message::{ChatMessage, Role, TokenUsage, NEXT_ID};
-use crate::config::types::ApprovalMode;
 use crate::config::AppConfig;
+use crate::config::types::ApprovalMode;
 use crate::session::db::Database;
 use crate::tui::Component;
 
-use super::rendering::{format_elapsed, format_compact_tokens, render_user_message};
+use super::rendering::{format_compact_tokens, format_elapsed, render_user_message};
 
 /// Streaming/agentic loop state.
 pub(super) struct StreamingState {
@@ -82,7 +82,6 @@ impl SessionState {
         let tx = self.action_tx.clone()?;
         Some((db, tx))
     }
-
 }
 
 /// State for the interactive model picker overlay.
@@ -431,7 +430,7 @@ impl Chat {
     /// Uses output tokens only because input tokens include re-sent context
     /// on every agentic turn, inflating the count. Context usage is shown
     /// separately in the status bar.
-    pub fn total_tokens(&self) -> u64 {
+    pub fn output_tokens(&self) -> u64 {
         self.total_tokens.output_tokens
     }
 
@@ -487,7 +486,10 @@ impl Chat {
     /// Get the current context token usage as (used, max).
     #[must_use]
     pub fn context_tokens(&self) -> (u64, u64) {
-        (self.context_state.tokens_used, self.context_state.context_window)
+        (
+            self.context_state.tokens_used,
+            self.context_state.context_window,
+        )
     }
 
     /// Get a mutable reference to the context state.
@@ -497,7 +499,10 @@ impl Chat {
 
     /// Whether the chat is currently awaiting an approval decision.
     pub fn is_awaiting_approval(&self) -> bool {
-        matches!(self.streaming.chat_state, ChatState::AwaitingApproval { .. })
+        matches!(
+            self.streaming.chat_state,
+            ChatState::AwaitingApproval { .. }
+        )
     }
 
     /// Get cloned DB handle and action sender, or `None` if either is missing.
@@ -530,7 +535,10 @@ impl Component for Chat {
         }
 
         // AwaitingApproval state: only Y/N/A/Esc/Ctrl+C accepted.
-        if matches!(self.streaming.chat_state, ChatState::AwaitingApproval { .. }) {
+        if matches!(
+            self.streaming.chat_state,
+            ChatState::AwaitingApproval { .. }
+        ) {
             return Ok(self.handle_approval_key(key));
         }
 
@@ -611,8 +619,10 @@ impl Component for Chat {
                     self.input.move_up();
                 } else {
                     // Scroll chat history up, clamped to max.
-                    self.scroll_offset =
-                        self.scroll_offset.saturating_add(3).min(self.max_scroll.get());
+                    self.scroll_offset = self
+                        .scroll_offset
+                        .saturating_add(3)
+                        .min(self.max_scroll.get());
                 }
                 Ok(None)
             }
@@ -635,8 +645,10 @@ impl Component for Chat {
                 Ok(None)
             }
             KeyCode::PageUp => {
-                self.scroll_offset =
-                    self.scroll_offset.saturating_add(10).min(self.max_scroll.get());
+                self.scroll_offset = self
+                    .scroll_offset
+                    .saturating_add(10)
+                    .min(self.max_scroll.get());
                 Ok(None)
             }
             KeyCode::PageDown => {
@@ -682,7 +694,8 @@ impl Component for Chat {
 
                 // Capture elapsed time and verb before clearing.
                 let elapsed = self
-                    .streaming.started_at
+                    .streaming
+                    .started_at
                     .take()
                     .map(|t| format_elapsed(t.elapsed()))
                     .unwrap_or_default();
@@ -712,19 +725,13 @@ impl Component for Chat {
                 // The buffer may have been partially flushed by tool calls
                 // mid-stream, so it might be empty or contain only the tail.
                 // Strip raw tool call XML that some models emit as text.
-                let clean_buffer =
-                    super::tools::strip_tool_call_xml(&self.streaming.buffer);
+                let clean_buffer = super::tools::strip_tool_call_xml(&self.streaming.buffer);
                 if !clean_buffer.is_empty() {
-                    let mut assistant_msg =
-                        ChatMessage::new(Role::Assistant, &clean_buffer);
+                    let mut assistant_msg = ChatMessage::new(Role::Assistant, &clean_buffer);
                     assistant_msg.token_usage = Some(usage);
 
                     // Auto-save assistant message to DB.
-                    self.save_assistant_message_to_db(
-                        &clean_buffer,
-                        input_tokens,
-                        output_tokens,
-                    );
+                    self.save_assistant_message_to_db(&clean_buffer, input_tokens, output_tokens);
 
                     let rendered = render_markdown(&clean_buffer);
                     self.rig_history.push(assistant_msg.to_rig_message());
@@ -1023,8 +1030,10 @@ pub(in crate::chat) mod tests {
         let mut chat = make_chat().await;
         chat.streaming.is_streaming = true;
 
-        chat.update(Action::StreamChunk("Hello ".to_string())).unwrap();
-        chat.update(Action::StreamChunk("world".to_string())).unwrap();
+        chat.update(Action::StreamChunk("Hello ".to_string()))
+            .unwrap();
+        chat.update(Action::StreamChunk("world".to_string()))
+            .unwrap();
         assert_eq!(chat.streaming.buffer, "Hello world");
     }
 
@@ -1033,7 +1042,8 @@ pub(in crate::chat) mod tests {
         let mut chat = make_chat().await;
         chat.streaming.is_streaming = true;
 
-        chat.update(Action::StreamError("test error".to_string())).unwrap();
+        chat.update(Action::StreamError("test error".to_string()))
+            .unwrap();
         assert!(!chat.streaming.is_streaming);
         let last = chat.messages.last().unwrap();
         assert!(last.content.contains("test error"));
@@ -1059,7 +1069,8 @@ pub(in crate::chat) mod tests {
     #[tokio::test]
     async fn paste_action_inserts_text() {
         let mut chat = make_chat().await;
-        chat.update(Action::Paste("pasted text".to_string())).unwrap();
+        chat.update(Action::Paste("pasted text".to_string()))
+            .unwrap();
         assert_eq!(chat.input.content(), "pasted text");
     }
 

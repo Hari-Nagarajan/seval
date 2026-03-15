@@ -12,10 +12,7 @@ pub fn format_tool_display(tool_name: &str, args_json: &str) -> String {
 
     match tool_name {
         "shell" => {
-            let cmd = args
-                .get("command")
-                .and_then(|v| v.as_str())
-                .unwrap_or("?");
+            let cmd = args.get("command").and_then(|v| v.as_str()).unwrap_or("?");
             format!("$ {cmd}")
         }
         "write" => {
@@ -32,30 +29,18 @@ pub fn format_tool_display(tool_name: &str, args_json: &str) -> String {
                 .get("file_path")
                 .and_then(|v| v.as_str())
                 .unwrap_or("?");
-            let old = args
-                .get("old_text")
-                .and_then(|v| v.as_str())
-                .unwrap_or("");
-            let new = args
-                .get("new_text")
-                .and_then(|v| v.as_str())
-                .unwrap_or("");
+            let old = args.get("old_text").and_then(|v| v.as_str()).unwrap_or("");
+            let new = args.get("new_text").and_then(|v| v.as_str()).unwrap_or("");
             let old_preview = truncate_str(old, 80);
             let new_preview = truncate_str(new, 80);
             format!("Edit {path}\n  - {old_preview}\n  + {new_preview}")
         }
         "grep" => {
-            let pattern = args
-                .get("pattern")
-                .and_then(|v| v.as_str())
-                .unwrap_or("?");
+            let pattern = args.get("pattern").and_then(|v| v.as_str()).unwrap_or("?");
             format!("Grep: {pattern}")
         }
         "glob" => {
-            let pattern = args
-                .get("pattern")
-                .and_then(|v| v.as_str())
-                .unwrap_or("?");
+            let pattern = args.get("pattern").and_then(|v| v.as_str()).unwrap_or("?");
             format!("Glob: {pattern}")
         }
         _ => {

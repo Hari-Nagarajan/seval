@@ -211,8 +211,7 @@ impl Chat {
         }
 
         // Insert the summary as a system message at position 0.
-        let summary_msg =
-            ChatMessage::new(Role::System, format!("[Context Summary]\n{summary}"));
+        let summary_msg = ChatMessage::new(Role::System, format!("[Context Summary]\n{summary}"));
         let rendered_summary = vec![Line::from(Span::styled(
             format!("[Context Summary] ({messages_removed} messages compressed)"),
             Style::default()
@@ -230,12 +229,17 @@ impl Chat {
             .collect();
 
         // Reset context state after compression.
-        self.context_state.reset_after_compression(compressed_tokens);
+        self.context_state
+            .reset_after_compression(compressed_tokens);
 
         // Add notification system message with stats.
         let orig_display = crate::chat::context::format_token_count(original_tokens);
         let comp_display = crate::chat::context::format_token_count(compressed_tokens);
-        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss, clippy::cast_precision_loss)]
+        #[allow(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            clippy::cast_precision_loss
+        )]
         let reduction = if original_tokens > 0 {
             ((1.0 - (compressed_tokens as f64 / original_tokens as f64)) * 100.0) as u64
         } else {

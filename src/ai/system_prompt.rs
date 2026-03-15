@@ -107,7 +107,10 @@ mod tests {
     #[test]
     fn default_prompt_contains_seval_name() {
         let prompt = DEFAULT_SYSTEM_PROMPT;
-        assert!(prompt.contains("Seval"), "default prompt should mention Seval");
+        assert!(
+            prompt.contains("Seval"),
+            "default prompt should mention Seval"
+        );
     }
 
     #[test]

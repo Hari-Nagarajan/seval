@@ -51,9 +51,7 @@ impl ContextState {
     #[must_use]
     pub fn needs_proactive_compression(&self) -> bool {
         let ratio = self.usage_ratio();
-        (0.70..0.85).contains(&ratio)
-            && !self.compressing
-            && self.messages_since_compression >= 2
+        (0.70..0.85).contains(&ratio) && !self.compressing && self.messages_since_compression >= 2
     }
 
     /// Whether enforced compression should be triggered.

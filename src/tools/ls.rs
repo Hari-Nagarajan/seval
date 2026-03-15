@@ -100,13 +100,13 @@ impl Tool for LsTool {
                 "-".to_string()
             };
 
-            let modified = metadata
-                .modified()
-                .ok()
-                .map_or_else(|| "-".to_string(), |t| {
+            let modified = metadata.modified().ok().map_or_else(
+                || "-".to_string(),
+                |t| {
                     let datetime: chrono::DateTime<chrono::Local> = t.into();
                     datetime.format("%Y-%m-%d %H:%M").to_string()
-                });
+                },
+            );
 
             let line = format!("{type_indicator} {size:>8} {modified} {display_name}");
 
@@ -173,8 +173,14 @@ mod tests {
             .unwrap();
         assert!(result.contains("file_a.txt"), "should list file_a.txt");
         assert!(result.contains("file_b.rs"), "should list file_b.rs");
-        assert!(result.contains("subdir/"), "should list subdir with trailing /");
-        assert!(result.contains("another_dir/"), "should list another_dir with trailing /");
+        assert!(
+            result.contains("subdir/"),
+            "should list subdir with trailing /"
+        );
+        assert!(
+            result.contains("another_dir/"),
+            "should list another_dir with trailing /"
+        );
     }
 
     #[tokio::test]
