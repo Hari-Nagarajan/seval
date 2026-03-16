@@ -13,7 +13,7 @@ name = "seval"
 path = "src/main.rs"
 
 [dependencies]
-ratatui = { version = "0.29", features = ["crossterm", "serde", "macros"] }
+ratatui = { version = "0.30", features = ["crossterm", "serde", "macros"] }
 crossterm = { version = "0.28", features = ["event-stream", "serde"] }
 tokio = { version = "1", features = ["full"] }
 clap = { version = "4", features = ["derive"] }
