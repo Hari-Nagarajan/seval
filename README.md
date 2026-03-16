@@ -9,6 +9,8 @@
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 [![CLA assistant](https://cla-assistant.io/readme/badge/Hari-Nagarajan/seval)](https://cla-assistant.io/Hari-Nagarajan/seval)
 
+[<img src="assets/discord.svg" alt="Join our Discord" height="32">](https://discord.gg/c8zQwH4qvp)
+
 AI-powered security research CLI built in Rust. Features a split-pane TUI dashboard, agentic tool execution via any LLM (AWS Bedrock or OpenRouter), session persistence, and context compression.
 
 ## Features
