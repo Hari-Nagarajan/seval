@@ -19,6 +19,23 @@ The CLA ensures that contributions can be properly licensed and that the project
 
 The pre-push hook runs `cargo fmt --check`, `cargo clippy`, and `cargo test` automatically before each push.
 
+## Commit Messages
+
+This project follows [Conventional Commits v1.0.0](https://www.conventionalcommits.org/en/v1.0.0/). A `commit-msg` hook enforces this automatically.
+
+Format: `<type>[optional scope]: <description>`
+
+**Types:** `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`
+
+Examples:
+```
+feat: add session export command
+fix(chat): truncate session IDs in log messages
+chore!: drop support for ratatui 0.29
+```
+
+Append a `!` after the type/scope for breaking changes. Use the commit body for additional detail when needed.
+
 ## Code Style
 
 - Follow existing patterns in the codebase

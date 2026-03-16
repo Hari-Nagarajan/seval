@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Enforce Conventional Commits v1.0.0
+# https://www.conventionalcommits.org/en/v1.0.0/
+
+commit_msg_file="$1"
+commit_msg=$(head -1 "$commit_msg_file")
+
+# Allow merge commits
+if echo "$commit_msg" | grep -qE '^Merge '; then
+  exit 0
+fi
+
+# type(optional scope): description
+# optional ! before : for breaking changes
+pattern='^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\(.+\))?!?: .+'
+
+if ! echo "$commit_msg" | grep -qE "$pattern"; then
+  echo "ERROR: Commit message does not follow Conventional Commits format." >&2
+  echo "" >&2
+  echo "  Expected: <type>[optional scope]: <description>" >&2
+  echo "" >&2
+  echo "  Types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert" >&2
+  echo "" >&2
+  echo "  Examples:" >&2
+  echo "    feat: add session export command" >&2
+  echo "    fix(chat): truncate session IDs in log messages" >&2
+  echo "    chore!: drop support for ratatui 0.29" >&2
+  echo "" >&2
+  echo "  See: https://www.conventionalcommits.org/en/v1.0.0/" >&2
+  exit 1
+fi
