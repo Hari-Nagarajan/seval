@@ -5,7 +5,7 @@
   <a href="https://github.com/Hari-Nagarajan/seval/actions/workflows/codeql.yml"><img src="https://github.com/Hari-Nagarajan/seval/actions/workflows/codeql.yml/badge.svg" alt="CodeQL"></a>
   <a href="https://crates.io/crates/seval"><img src="https://img.shields.io/crates/v/seval.svg" alt="crates.io"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" alt="License: AGPL v3"></a>
-  <a href="https://blog.rust-lang.org/2025/02/20/Rust-1.85.0.html"><img src="https://img.shields.io/badge/MSRV-1.85-orange?logo=rust" alt="MSRV"></a>
+  <a href="https://blog.rust-lang.org/2025/06/26/Rust-1.91.0.html"><img src="https://img.shields.io/badge/MSRV-1.91-orange?logo=rust" alt="MSRV"></a>
   <a href="https://github.com/Hari-Nagarajan/seval/actions/workflows/ci.yml"><img src="https://img.shields.io/badge/deps-audited-green?logo=rust" alt="dependency audit"></a>
   <a href="CONTRIBUTING.md"><img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs welcome"></a>
   <a href="https://cla-assistant.io/Hari-Nagarajan/seval"><img src="https://cla-assistant.io/readme/badge/Hari-Nagarajan/seval" alt="CLA assistant"></a>
@@ -29,7 +29,7 @@ Your offensive security assistant in the terminal. seval pairs any LLM with 10 b
 brew install Hari-Nagarajan/tap/seval
 ```
 
-**Cargo** (requires Rust 1.85+):
+**Cargo** (requires Rust 1.91+):
 
 ```sh
 cargo install seval
