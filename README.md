@@ -3,6 +3,7 @@
 [![Rust](https://img.shields.io/badge/rust-1.85%2B-orange?logo=rust)](https://www.rust-lang.org/)
 [![License: AGPL v3](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
 [![CLA assistant](https://cla-assistant.io/readme/badge/Hari-Nagarajan/seval)](https://cla-assistant.io/Hari-Nagarajan/seval)
+[![Discord](https://img.shields.io/discord/1350338014253748234?logo=discord&label=discord)](https://discord.gg/c8zQwH4qvp)
 
 AI-powered security research CLI built in Rust. Features a split-pane TUI dashboard, agentic tool execution via any LLM (AWS Bedrock or OpenRouter), session persistence, and context compression.
 
