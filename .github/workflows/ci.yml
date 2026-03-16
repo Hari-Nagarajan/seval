@@ -172,7 +172,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          fetch-depth: 0
 
       - name: Get current version
         id: version
@@ -182,9 +182,12 @@ jobs:
 
       - name: Check if version changed
         id: check
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
         run: |
-          PREV=$(git show HEAD~1:Cargo.toml 2>/dev/null | grep '^version' | head -1 | sed 's/.*"\(.*\)".*/\1/' || echo "")
+          PREV=$(git show "$BEFORE_SHA":Cargo.toml 2>/dev/null | grep '^version' | head -1 | sed 's/.*"\(.*\)".*/\1/' || echo "")
           CURR=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          echo "Previous: $PREV, Current: $CURR"
           if [ "$PREV" != "$CURR" ]; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
           else
