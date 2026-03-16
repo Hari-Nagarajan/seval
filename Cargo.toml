@@ -36,7 +36,7 @@ futures = "0.3"
 tokio-util = "0.7"
 strum = { version = "0.28", features = ["derive"] }
 directories = "6"
-signal-hook = "0.3"
+signal-hook = "0.4"
 signal-hook-tokio = { version = "0.3", features = ["futures-v0_3"] }
 rig-core = "0.32"
 pulldown-cmark = { version = "0.13", default-features = false }
