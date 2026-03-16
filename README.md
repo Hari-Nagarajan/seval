@@ -7,6 +7,7 @@
 [![dependency audit](https://img.shields.io/badge/deps-audited-green?logo=rust)](https://github.com/Hari-Nagarajan/seval/actions/workflows/ci.yml)
 [![GitHub issues](https://img.shields.io/github/issues/Hari-Nagarajan/seval)](https://github.com/Hari-Nagarajan/seval/issues)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+[![crates.io](https://img.shields.io/crates/v/seval.svg)](https://crates.io/crates/seval)
 [![CLA assistant](https://cla-assistant.io/readme/badge/Hari-Nagarajan/seval)](https://cla-assistant.io/Hari-Nagarajan/seval)
 
 [<img src="assets/discord.svg" alt="Join our Discord" height="32">](https://discord.gg/c8zQwH4qvp)
@@ -25,6 +26,13 @@ AI-powered security research CLI built in Rust. Features a split-pane TUI dashbo
 - **Configurable deny rules** to block dangerous shell commands
 - **Markdown rendering** with syntax highlighting in the terminal
 - **System prompt override** via `~/.seval/system.md`
+
+## Quick Install
+
+```sh
+cargo install seval
+seval init
+```
 
 ## Prerequisites
 
