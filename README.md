@@ -23,12 +23,25 @@ Your offensive security assistant in the terminal. seval pairs any LLM with 10 b
 
 ## Install
 
+**Homebrew** (macOS/Linux, no Rust required):
+
 ```sh
-cargo install seval
-seval init            # interactive setup wizard
+brew install Hari-Nagarajan/tap/seval
 ```
 
-> Requires Rust 1.85+ and either [AWS Bedrock](https://aws.amazon.com/bedrock/) credentials or an [OpenRouter](https://openrouter.ai/) API key.
+**Cargo** (requires Rust 1.85+):
+
+```sh
+cargo install seval
+```
+
+Then run the setup wizard:
+
+```sh
+seval init
+```
+
+> Requires either [AWS Bedrock](https://aws.amazon.com/bedrock/) credentials or an [OpenRouter](https://openrouter.ai/) API key.
 
 Or build from source:
 
