@@ -233,20 +233,21 @@ impl Chat {
             match crate::session::import_export::import_seval_session(&db, &path) {
                 Ok(session_id) => {
                     // Get session details for the message.
-                    let detail = match db.list_sessions(None) {
-                        Ok(sessions) => {
-                            if let Some(s) = sessions.iter().find(|s| s.id == session_id) {
-                                let name = s.name.as_deref().unwrap_or("(untitled)");
-                                let short_id = &s.id[..8.min(s.id.len())];
-                                format!(
-                                    "Imported session: {name} ({short_id}) with {} messages",
-                                    s.message_count
-                                )
-                            } else {
-                                format!("Imported session: {session_id}")
-                            }
+                    let detail = if let Ok(sessions) = db.list_sessions(None) {
+                        if let Some(s) = sessions.iter().find(|s| s.id == session_id) {
+                            let name = s.name.as_deref().unwrap_or("(untitled)");
+                            let short_id = &s.id[..8.min(s.id.len())];
+                            format!(
+                                "Imported session: {name} ({short_id}) with {} messages",
+                                s.message_count
+                            )
+                        } else {
+                            let short_id = &session_id[..8.min(session_id.len())];
+                            format!("Imported session: {short_id}")
                         }
-                        Err(_) => format!("Imported session: {session_id}"),
+                    } else {
+                        let short_id = &session_id[..8.min(session_id.len())];
+                        format!("Imported session: {short_id}")
                     };
                     let _ = tx.send(Action::ShowSystemMessage(detail));
                 }
@@ -278,13 +279,14 @@ impl Chat {
                 || std::path::PathBuf::from("exports"),
                 |b| b.home_dir().join(".seval").join("exports"),
             );
+            let short_id = &sid[..8.min(sid.len())];
             let output_path = export_dir.join(format!("{sid}.json"));
 
             match crate::session::import_export::export_seval_session(&db, &sid, &output_path) {
                 Ok(()) => {
                     let _ = tx.send(Action::ShowSystemMessage(format!(
-                        "Exported session to: {}",
-                        output_path.display()
+                        "Exported session {short_id} to: {}",
+                        export_dir.display()
                     )));
                 }
                 Err(e) => {
