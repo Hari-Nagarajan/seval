@@ -30,7 +30,7 @@ jobs:
           echo "SHA_LINUX_X86=$(shasum -a 256 assets/seval-linux-x86_64.tar.gz | awk '{print $1}')" >> "$GITHUB_ENV"
 
       - name: Checkout homebrew-tap
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: Hari-Nagarajan/homebrew-tap
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
