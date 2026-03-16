@@ -3,6 +3,13 @@ name = "seval"
 version = "0.1.2"
 edition = "2024"
 license = "AGPL-3.0-only"
+description = "AI-powered security research CLI with a split-pane TUI, agentic tool execution, and session persistence"
+repository = "https://github.com/Hari-Nagarajan/seval"
+homepage = "https://github.com/Hari-Nagarajan/seval"
+readme = "README.md"
+keywords = ["cli", "tui", "ai", "security", "llm"]
+categories = ["command-line-utilities"]
+exclude = [".github/", ".githooks/", ".seval/", "assets/"]
 
 [lib]
 name = "seval"
