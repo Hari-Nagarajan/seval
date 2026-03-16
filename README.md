@@ -5,7 +5,7 @@
 [![License: AGPL v3](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
 [![MSRV](https://img.shields.io/badge/MSRV-1.85-orange?logo=rust)](https://blog.rust-lang.org/2025/02/20/Rust-1.85.0.html)
 [![dependency audit](https://img.shields.io/badge/deps-audited-green?logo=rust)](https://github.com/Hari-Nagarajan/seval/actions/workflows/ci.yml)
-[![Discord](https://img.shields.io/discord/1350338014253748234?logo=discord&label=discord)](https://discord.gg/c8zQwH4qvp)
+[![Discord](https://img.shields.io/discord/1482920425511194807?logo=discord&label=discord)](https://discord.gg/c8zQwH4qvp)
 [![GitHub issues](https://img.shields.io/github/issues/Hari-Nagarajan/seval)](https://github.com/Hari-Nagarajan/seval/issues)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 [![CLA assistant](https://cla-assistant.io/readme/badge/Hari-Nagarajan/seval)](https://cla-assistant.io/Hari-Nagarajan/seval)
