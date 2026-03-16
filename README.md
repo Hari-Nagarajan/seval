@@ -1,175 +1,142 @@
-# seval
+# Seval CLI
 
-[![CI](https://github.com/Hari-Nagarajan/seval/actions/workflows/ci.yml/badge.svg)](https://github.com/Hari-Nagarajan/seval/actions/workflows/ci.yml)
-[![CodeQL](https://github.com/Hari-Nagarajan/seval/actions/workflows/codeql.yml/badge.svg)](https://github.com/Hari-Nagarajan/seval/actions/workflows/codeql.yml)
-[![License: AGPL v3](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
-[![MSRV](https://img.shields.io/badge/MSRV-1.85-orange?logo=rust)](https://blog.rust-lang.org/2025/02/20/Rust-1.85.0.html)
-[![dependency audit](https://img.shields.io/badge/deps-audited-green?logo=rust)](https://github.com/Hari-Nagarajan/seval/actions/workflows/ci.yml)
-[![GitHub issues](https://img.shields.io/github/issues/Hari-Nagarajan/seval)](https://github.com/Hari-Nagarajan/seval/issues)
-[![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
-[![crates.io](https://img.shields.io/crates/v/seval.svg)](https://crates.io/crates/seval)
-[![CLA assistant](https://cla-assistant.io/readme/badge/Hari-Nagarajan/seval)](https://cla-assistant.io/Hari-Nagarajan/seval)
+<p align="center">
+  <a href="https://github.com/Hari-Nagarajan/seval/actions/workflows/ci.yml"><img src="https://github.com/Hari-Nagarajan/seval/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/Hari-Nagarajan/seval/actions/workflows/codeql.yml"><img src="https://github.com/Hari-Nagarajan/seval/actions/workflows/codeql.yml/badge.svg" alt="CodeQL"></a>
+  <a href="https://crates.io/crates/seval"><img src="https://img.shields.io/crates/v/seval.svg" alt="crates.io"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" alt="License: AGPL v3"></a>
+  <a href="https://blog.rust-lang.org/2025/02/20/Rust-1.85.0.html"><img src="https://img.shields.io/badge/MSRV-1.85-orange?logo=rust" alt="MSRV"></a>
+  <a href="https://github.com/Hari-Nagarajan/seval/actions/workflows/ci.yml"><img src="https://img.shields.io/badge/deps-audited-green?logo=rust" alt="dependency audit"></a>
+  <a href="CONTRIBUTING.md"><img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs welcome"></a>
+  <a href="https://cla-assistant.io/Hari-Nagarajan/seval"><img src="https://cla-assistant.io/readme/badge/Hari-Nagarajan/seval" alt="CLA assistant"></a>
+</p>
 
-[<img src="assets/discord.svg" alt="Join our Discord" height="32">](https://discord.gg/c8zQwH4qvp)
+<p align="center">
+  <a href="https://discord.gg/c8zQwH4qvp"><img src="assets/discord.svg" alt="Discord" height="32"></a>
+  <br>
+  <a href="https://discord.gg/c8zQwH4qvp">Join the community</a>
+</p>
 
-AI-powered security research CLI built in Rust. Features a split-pane TUI dashboard, agentic tool execution via any LLM (AWS Bedrock or OpenRouter), session persistence, and context compression.
+Your offensive security assistant in the terminal. seval pairs any LLM with 10 built-in tools (shell access, file I/O, web recon) and lets it work autonomously through a real-time split-pane TUI. Point it at a pentest engagement, red team exercise, or your own infrastructure audit and let it handle the tedious work: enumeration, vulnerability discovery, exploit development, and reporting. You set the guardrails, it does the grinding.
 
-## Features
+---
 
-- **Streaming chat** with any LLM through AWS Bedrock or OpenRouter (Claude, GPT, Llama, Gemini, etc.)
-- **10 built-in tools** the AI can invoke autonomously (shell, file ops, search, web)
-- **Split-pane TUI** powered by ratatui -- chat on the left, tool output on the right
-- **Session management** with SQLite persistence, resume/export/import
-- **Context compression** via tiktoken to stay within model limits
-- **Approval modes** to control tool execution safety
-- **Project memories** the AI can save and recall across sessions
-- **Configurable deny rules** to block dangerous shell commands
-- **Markdown rendering** with syntax highlighting in the terminal
-- **System prompt override** via `~/.seval/system.md`
-
-## Quick Install
+## Install
 
 ```sh
 cargo install seval
-seval init
+seval init            # interactive setup wizard
 ```
 
-## Prerequisites
+> Requires Rust 1.85+ and either [AWS Bedrock](https://aws.amazon.com/bedrock/) credentials or an [OpenRouter](https://openrouter.ai/) API key.
 
-- **Rust toolchain** (edition 2024, so Rust 1.85+)
-- **AWS credentials** with Bedrock access, *or* an OpenRouter API key
-- **Brave Search API key** (optional, enables the `web_search` tool)
-
-## Setup
-
-Run `seval` for the first time or use `seval init` to launch the interactive configuration wizard. This creates `~/.seval/config.toml`.
-
-To re-run the wizard and overwrite an existing config:
+Or build from source:
 
 ```sh
-seval init --force
+git clone https://github.com/Hari-Nagarajan/seval.git
+cd seval && cargo build --release
 ```
 
-### Configuration files
+---
 
-| File | Purpose |
+## What It Does
+
+**seval** gives you an AI assistant in your terminal that can actually do things. Ask it to investigate a target, and it will run commands, read files, search the web, and chain multiple tools together -- all while you watch in real time.
+
+### Agentic Tool Execution
+
+The AI has 10 built-in tools it can invoke autonomously in multi-turn loops:
+
+`shell` | `read` | `write` | `edit` | `grep` | `glob` | `ls` | `web_fetch` | `web_search` | `save_memory`
+
+You control what it's allowed to do via **approval modes**:
+
+| Mode | What the AI Can Do |
 |---|---|
-| `~/.seval/config.toml` | Global config (credentials, provider, model, approval mode, deny rules) |
-| `.seval/config.toml` | Project-local overrides (approval mode, deny rules, AWS settings) |
-| `~/.seval/system.md` | Custom system prompt (replaces the default) |
-
-### Example global config
-
-```toml
-[provider]
-active = "bedrock"   # or "open-router"
-
-[bedrock]
-access_key_id = "AKIA..."
-secret_access_key = "..."
-region = "us-east-1"
-
-[openrouter]
-api_key = "sk-or-..."
-
-[tools]
-approval_mode = "default"
-max_turns = 25
-deny_rules = [
-  "rm -rf /",
-  "rm -rf /*",
-  "chmod 777 /",
-  "mkfs.*",
-  "> /dev/sd*",
-  "dd if=* of=/dev/*",
-]
-
-brave_api_key = "BSA..."
-```
-
-## Build & Install
+| `plan` | Read-only recon -- no tools executed |
+| `default` | Auto-approves reads, asks before writes or shell |
+| `auto-edit` | Auto-approves reads and file edits, asks for shell |
+| `yolo` | Full autonomy -- everything auto-approved |
 
 ```sh
-cargo build --release
-# Binary at target/release/seval
+seval --approval-mode yolo
 ```
 
-Or run directly:
+### Split-Pane TUI
 
-```sh
-cargo run --release
-```
+The interface shows the conversation on the left and tool activity on the right, with a status bar tracking the model, token usage, and session info.
 
-## Usage
+### Multi-Provider Support
+
+Connect to any LLM through **AWS Bedrock** or **OpenRouter**. Switch models mid-conversation with `/model`.
+
+Supported model families include Claude, GPT, Llama, Gemini, Mistral, DeepSeek, and more.
+
+### Session Persistence
+
+Every conversation is saved to a local SQLite database. Resume previous sessions, export them as JSON, or import sessions from other machines.
+
+### Project Memories
+
+The AI can save important findings with `save_memory`. Memories are scoped to the current project directory and automatically loaded into future sessions -- so the AI remembers what it learned.
+
+### Context Compression
+
+When the conversation approaches the model's context limit, seval automatically summarizes older messages to free up space. A color-coded bar in the sidebar shows context usage at a glance.
+
+---
+
+## CLI Reference
 
 ```
 seval [OPTIONS] [COMMAND]
 
 Commands:
-  init  Initialize configuration (interactive wizard)
+  init                         Interactive setup wizard
 
 Options:
   --profile <PROFILE>          AWS profile name
   --region <REGION>            AWS region
-  --model <MODEL>              Bedrock model ID
-  --approval-mode <MODE>       Tool approval mode [plan|default|auto-edit|yolo]
-  --config <PATH>              Path to configuration file
+  --model <MODEL>              Model ID
+  --approval-mode <MODE>       plan | default | auto-edit | yolo
+  --config <PATH>              Path to config file
   -h, --help                   Print help
   -V, --version                Print version
 ```
 
-### Approval modes
-
-| Mode | Behavior |
-|---|---|
-| `plan` | Read-only, no tool execution |
-| `default` | Ask before write operations |
-| `auto-edit` | Auto-approve file edits, ask for shell commands |
-| `yolo` | Approve everything automatically |
-
-### Slash commands
-
-Type these in the chat input:
+### Slash Commands
 
 | Command | Description |
 |---|---|
-| `/model [name]` | Switch AI model (show current if no name) |
+| `/model [name]` | Switch model (or show current) |
 | `/sessions` | List saved sessions |
-| `/sessions resume <id>` | Resume a saved session |
-| `/sessions delete <id>` | Delete a saved session |
-| `/import <path>` | Import a session from JSON |
+| `/sessions resume <id>` | Resume a session |
+| `/sessions delete <id>` | Delete a session |
+| `/import <path>` | Import session from JSON |
 | `/export [id]` | Export session to JSON |
 | `/memory` | List project memories |
-| `/memory delete <id>` | Delete a memory entry |
+| `/memory delete <id>` | Delete a memory |
+| `/clear` | Clear conversation |
 | `/help` | Show help |
-| `/clear` | Clear conversation history |
-| `/quit` or `/q` | Quit |
+| `/quit` | Quit |
 
-## Tools
+---
 
-The AI has access to 10 built-in tools during agentic execution:
+## Documentation
 
-| Tool | Description |
-|---|---|
-| `shell` | Execute shell commands |
-| `read` | Read file contents |
-| `write` | Write/create files |
-| `edit` | Apply targeted edits to files |
-| `grep` | Search file contents with regex |
-| `glob` | Find files by glob pattern |
-| `ls` | List directory contents |
-| `web_fetch` | Fetch and extract text from a URL |
-| `web_search` | Search the web via Brave Search API |
-| `save_memory` | Persist a memory for future sessions |
+See the **[Wiki](https://github.com/Hari-Nagarajan/seval/wiki)** for full documentation:
 
-## TUI Layout
+- **[Installation](https://github.com/Hari-Nagarajan/seval/wiki/Installation)** -- prerequisites, building, setup
+- **[Usage](https://github.com/Hari-Nagarajan/seval/wiki/Usage)** -- keybindings, tools, approval modes, sessions
+- **[Configuration](https://github.com/Hari-Nagarajan/seval/wiki/Configuration)** -- providers, config files, deny rules, custom system prompts
+- **[Architecture](https://github.com/Hari-Nagarajan/seval/wiki/Architecture)** -- codebase structure and design patterns
 
-The interface is a split-pane terminal UI:
+---
 
-- **Left pane** -- Chat conversation with streaming markdown rendering
-- **Right pane** -- Tool execution output and approval prompts
-- **Bottom bar** -- Input area and status indicators (model, token count, session)
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines. PRs welcome.
 
 ## License
 
-This project is licensed under the [GNU Affero General Public License v3.0](LICENSE).
+[GNU Affero General Public License v3.0](LICENSE)
