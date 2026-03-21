@@ -54,7 +54,7 @@ pub struct AgentDef {
 }
 
 /// Origin of an agent definition.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AgentSource {
     /// Bundled with the binary.
     BuiltIn,
