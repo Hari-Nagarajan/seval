@@ -25,7 +25,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 ### v2.0 Sub-Agent System (Active)
 
-- [ ] **Phase 9: Agent Definitions and Loading** - AGENT.md format, layered directory loading, three built-in agents
+- [x] **Phase 9: Agent Definitions and Loading** - AGENT.md format, layered directory loading, three built-in agents (completed 2026-03-21)
 - [ ] **Phase 10: Agent Execution and Result Communication** - spawn_agent tool, async execution, result delivery, child sessions
 - [ ] **Phase 11: Agent UI and Management Commands** - Sidebar live display, /agents slash command suite
 
@@ -176,7 +176,7 @@ Plans:
 
 Plans:
 - [x] 09-01-PLAN.md — Agent types, TOML frontmatter parser, tool filtering, built-in agent content files
-- [ ] 09-02-PLAN.md — Three-tier directory loading, AgentRegistry, install_builtins, App startup wiring
+- [x] 09-02-PLAN.md — Three-tier directory loading, AgentRegistry, install_builtins, App startup wiring
 
 ### Phase 10: Agent Execution and Result Communication
 **Goal**: The AI can spawn agents that run asynchronously with isolated context, and results flow back into the parent conversation
@@ -224,7 +224,7 @@ Phases execute in numeric order: 1 -> 2 -> ... -> 8 -> 9 -> 10 -> 11
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 9. Agent Definitions and Loading | 1/2 | In Progress|  |
+| 9. Agent Definitions and Loading | 2/2 | Complete   | 2026-03-21 |
 | 10. Agent Execution and Result Communication | 0/? | Not started | - |
 | 11. Agent UI and Management Commands | 0/? | Not started | - |
 

@@ -35,7 +35,7 @@ All 55 v1.0 requirements are complete. See traceability section for phase mappin
 ### Agent Definitions
 
 - [x] **AGENTDEF-01**: User can define an agent via AGENT.md with YAML frontmatter (name, model, temperature, max_turns, max_time_minutes, allowed_tools, denied_tools, approval_mode) — markdown body becomes the agent's system prompt
-- [ ] **AGENTDEF-02**: Agent definitions load from three directory tiers — built-in (`~/.seval/agents/default/`), user-global (`~/.seval/agents/`), project-local (`.seval/agents/`) — with project-local overriding user-global overriding built-in
+- [x] **AGENTDEF-02**: Agent definitions load from three directory tiers — built-in (`~/.seval/agents/default/`), user-global (`~/.seval/agents/`), project-local (`.seval/agents/`) — with project-local overriding user-global overriding built-in
 
 ### Agent Execution
 
@@ -55,7 +55,7 @@ All 55 v1.0 requirements are complete. See traceability section for phase mappin
 ### Built-in Agents
 
 - [x] **AGENTBI-01**: Three built-in agents ship with seval: `security-analyzer` (vuln analysis / MITRE ATT&CK), `code-reviewer` (OWASP secure coding), `recon-agent` (reconnaissance / OSINT)
-- [ ] **AGENTBI-02**: Built-in agents are installed to `~/.seval/agents/default/` on first run and usable as templates
+- [x] **AGENTBI-02**: Built-in agents are installed to `~/.seval/agents/default/` on first run and usable as templates
 
 ### Management Commands
 
@@ -108,7 +108,7 @@ Deferred beyond v2.0. Tracked but not in current roadmap.
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | AGENTDEF-01 | Phase 9 | Complete |
-| AGENTDEF-02 | Phase 9 | Pending |
+| AGENTDEF-02 | Phase 9 | Complete |
 | AGENTEXEC-01 | Phase 10 | Pending |
 | AGENTEXEC-02 | Phase 10 | Pending |
 | AGENTEXEC-03 | Phase 10 | Pending |
@@ -119,7 +119,7 @@ Deferred beyond v2.0. Tracked but not in current roadmap.
 | AGENTRES-02 | Phase 10 | Pending |
 | AGENTRES-03 | Phase 10 | Pending |
 | AGENTBI-01 | Phase 9 | Complete |
-| AGENTBI-02 | Phase 9 | Pending |
+| AGENTBI-02 | Phase 9 | Complete |
 | AGENTCMD-01 | Phase 11 | Pending |
 | AGENTCMD-02 | Phase 11 | Pending |
 | AGENTCMD-03 | Phase 11 | Pending |
