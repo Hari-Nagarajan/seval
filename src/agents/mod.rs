@@ -4,9 +4,189 @@
 
 pub mod types;
 
-use types::AgentFrontmatter;
+use types::{AgentDef, AgentFrontmatter, AgentSource};
 
 use crate::ai::provider::AiProvider;
+
+// -------------------------------------------------------------------------
+// Built-in agent content (embedded at compile time)
+// -------------------------------------------------------------------------
+
+const BUILTIN_SECURITY_ANALYZER: &str = include_str!("builtin/security-analyzer.md");
+const BUILTIN_CODE_REVIEWER: &str = include_str!("builtin/code-reviewer.md");
+const BUILTIN_RECON_AGENT: &str = include_str!("builtin/recon-agent.md");
+
+// -------------------------------------------------------------------------
+// AgentRegistry
+// -------------------------------------------------------------------------
+
+/// Registry of loaded agent definitions, keyed by agent name.
+#[derive(Debug, Clone)]
+pub struct AgentRegistry {
+    agents: std::collections::HashMap<String, AgentDef>,
+}
+
+impl AgentRegistry {
+    /// Create an empty registry.
+    pub fn new() -> Self {
+        Self {
+            agents: std::collections::HashMap::new(),
+        }
+    }
+
+    /// Look up an agent by name.
+    pub fn get(&self, name: &str) -> Option<&AgentDef> {
+        self.agents.get(name)
+    }
+
+    /// Return all agents sorted by name.
+    pub fn list(&self) -> Vec<&AgentDef> {
+        let mut agents: Vec<&AgentDef> = self.agents.values().collect();
+        agents.sort_by(|a, b| a.frontmatter.name.cmp(&b.frontmatter.name));
+        agents
+    }
+
+    /// Return the number of loaded agents.
+    pub fn len(&self) -> usize {
+        self.agents.len()
+    }
+
+    /// Return true if no agents are loaded.
+    pub fn is_empty(&self) -> bool {
+        self.agents.is_empty()
+    }
+}
+
+impl Default for AgentRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+// -------------------------------------------------------------------------
+// Directory helpers
+// -------------------------------------------------------------------------
+
+/// Returns `~/.seval/agents/default/` — where built-in agents are installed.
+fn builtin_agents_dir() -> Option<std::path::PathBuf> {
+    directories::BaseDirs::new()
+        .map(|b| b.home_dir().join(".seval").join("agents").join("default"))
+}
+
+/// Returns `~/.seval/agents/` — the user-global agent directory.
+fn user_agents_dir() -> Option<std::path::PathBuf> {
+    directories::BaseDirs::new().map(|b| b.home_dir().join(".seval").join("agents"))
+}
+
+// -------------------------------------------------------------------------
+// install_builtins
+// -------------------------------------------------------------------------
+
+/// Write the three built-in agent files to `dir`, creating it if needed.
+///
+/// Called with a temp directory in tests; called with [`builtin_agents_dir`] in production.
+/// Overwrites any existing files (idempotent per D-12).
+pub fn install_builtins_to(dir: &std::path::Path) -> anyhow::Result<()> {
+    std::fs::create_dir_all(dir)?;
+    let agents = [
+        ("security-analyzer.md", BUILTIN_SECURITY_ANALYZER),
+        ("code-reviewer.md", BUILTIN_CODE_REVIEWER),
+        ("recon-agent.md", BUILTIN_RECON_AGENT),
+    ];
+    for (filename, content) in agents {
+        std::fs::write(dir.join(filename), content)?;
+    }
+    Ok(())
+}
+
+/// Install built-in agents to `~/.seval/agents/default/`.
+///
+/// Always overwrites (D-12). Non-fatal on failure — callers should `tracing::warn` on error.
+pub fn install_builtins() -> anyhow::Result<()> {
+    let dir = builtin_agents_dir()
+        .ok_or_else(|| anyhow::anyhow!("cannot determine home directory"))?;
+    install_builtins_to(&dir)
+}
+
+// -------------------------------------------------------------------------
+// load_tier / load_agents
+// -------------------------------------------------------------------------
+
+/// Load all `.md` agent files from `dir` into `map` with the given `source` tag.
+///
+/// Missing or unreadable directories are silently skipped. Files that fail to
+/// parse emit a `tracing::warn` and are skipped (D-03).
+fn load_tier(
+    dir: &std::path::Path,
+    source: AgentSource,
+    map: &mut std::collections::HashMap<String, AgentDef>,
+) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().is_some_and(|e| e == "md") {
+            match std::fs::read_to_string(&path) {
+                Ok(content) => match parse_agent_file(&content) {
+                    Ok((frontmatter, body)) => {
+                        let name = frontmatter.name.clone();
+                        map.insert(
+                            name,
+                            AgentDef {
+                                frontmatter,
+                                system_prompt: body,
+                                source,
+                            },
+                        );
+                    }
+                    Err(e) => {
+                        tracing::warn!("skipping agent file {:?}: {e}", path);
+                    }
+                },
+                Err(e) => {
+                    tracing::warn!("cannot read agent file {:?}: {e}", path);
+                }
+            }
+        }
+    }
+}
+
+/// Load agents from the three-tier hierarchy using production directory paths.
+///
+/// Priority (lowest to highest): built-in < user-global < project-local (D-08, D-09).
+pub fn load_agents() -> AgentRegistry {
+    let builtin = builtin_agents_dir();
+    let user = user_agents_dir();
+    let project = std::path::PathBuf::from(".seval").join("agents");
+    load_agents_from_paths(builtin.as_deref(), user.as_deref(), Some(&project))
+}
+
+/// Load agents from explicit tier paths (testable variant of [`load_agents`]).
+///
+/// `None` for a tier means that tier is skipped entirely.
+pub fn load_agents_from_paths(
+    builtin_dir: Option<&std::path::Path>,
+    user_dir: Option<&std::path::Path>,
+    project_dir: Option<&std::path::Path>,
+) -> AgentRegistry {
+    let mut map = std::collections::HashMap::new();
+
+    // Tier 1: built-in (lowest priority)
+    if let Some(dir) = builtin_dir {
+        load_tier(dir, AgentSource::BuiltIn, &mut map);
+    }
+    // Tier 2: user-global (middle priority — overwrites built-in)
+    if let Some(dir) = user_dir {
+        load_tier(dir, AgentSource::UserGlobal, &mut map);
+    }
+    // Tier 3: project-local (highest priority — overwrites all)
+    if let Some(dir) = project_dir {
+        load_tier(dir, AgentSource::ProjectLocal, &mut map);
+    }
+
+    AgentRegistry { agents: map }
+}
 
 /// Parse an AGENT.md file content into frontmatter and system prompt body.
 ///
@@ -334,6 +514,184 @@ Minimal body.
         let content = "+++\nname = \"t\"\nmodel = \"s\"\nmax_turns = 1\nfoo = \"bar\"\n+++\nbody\n";
         let result = parse_agent_file(content);
         assert!(result.is_err(), "should reject unknown fields");
+    }
+
+    // -------------------------------------------------------------------------
+    // AgentRegistry / three-tier loading tests
+    // -------------------------------------------------------------------------
+
+    /// Write a minimal valid agent file to `dir/{name}.md`.
+    fn write_test_agent(dir: &std::path::Path, name: &str, description: &str) {
+        let content = format!(
+            "+++\nname = \"{name}\"\ndescription = \"{description}\"\nmodel = \"sonnet\"\nmax_turns = 10\n+++\n\nTest system prompt for {name}\n"
+        );
+        std::fs::write(dir.join(format!("{name}.md")), content).unwrap();
+    }
+
+    #[test]
+    fn install_builtins_writes_files() {
+        let dir = tempfile::tempdir().unwrap();
+        install_builtins_to(dir.path()).unwrap();
+        assert!(dir.path().join("security-analyzer.md").exists());
+        assert!(dir.path().join("code-reviewer.md").exists());
+        assert!(dir.path().join("recon-agent.md").exists());
+    }
+
+    #[test]
+    fn install_builtins_overwrites() {
+        let dir = tempfile::tempdir().unwrap();
+        install_builtins_to(dir.path()).unwrap();
+        let first = std::fs::read_to_string(dir.path().join("security-analyzer.md")).unwrap();
+        install_builtins_to(dir.path()).unwrap();
+        let second = std::fs::read_to_string(dir.path().join("security-analyzer.md")).unwrap();
+        assert_eq!(first, second, "second install should produce identical files");
+    }
+
+    #[test]
+    fn load_tier_reads_md_files() {
+        let dir = tempfile::tempdir().unwrap();
+        write_test_agent(dir.path(), "agent-a", "first");
+        write_test_agent(dir.path(), "agent-b", "second");
+
+        let mut map = std::collections::HashMap::new();
+        load_tier(dir.path(), AgentSource::BuiltIn, &mut map);
+        assert_eq!(map.len(), 2);
+        assert!(map.contains_key("agent-a"));
+        assert!(map.contains_key("agent-b"));
+    }
+
+    #[test]
+    fn load_tier_skips_non_md() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("agent.txt"), "ignored").unwrap();
+        std::fs::write(dir.path().join("agent.toml"), "[name]\nname=\"x\"").unwrap();
+
+        let mut map = std::collections::HashMap::new();
+        load_tier(dir.path(), AgentSource::BuiltIn, &mut map);
+        assert!(map.is_empty());
+    }
+
+    #[test]
+    fn load_tier_skips_invalid_md() {
+        let dir = tempfile::tempdir().unwrap();
+        // Write a file with invalid TOML frontmatter
+        std::fs::write(dir.path().join("bad.md"), "+++\nnot_valid = {{{{}\n+++\nbody\n").unwrap();
+
+        let mut map = std::collections::HashMap::new();
+        load_tier(dir.path(), AgentSource::BuiltIn, &mut map);
+        // Should warn and skip — no panic, empty map
+        assert!(map.is_empty());
+    }
+
+    #[test]
+    fn load_tier_missing_dir() {
+        let nonexistent = std::path::Path::new("/tmp/seval-test-nonexistent-12345678");
+        let mut map = std::collections::HashMap::new();
+        // Should not panic or return error
+        load_tier(nonexistent, AgentSource::BuiltIn, &mut map);
+        assert!(map.is_empty());
+    }
+
+    #[test]
+    fn three_tier_override() {
+        let builtin_dir = tempfile::tempdir().unwrap();
+        let user_dir = tempfile::tempdir().unwrap();
+        let project_dir = tempfile::tempdir().unwrap();
+
+        write_test_agent(builtin_dir.path(), "test-agent", "builtin-description");
+        write_test_agent(user_dir.path(), "test-agent", "user-description");
+        write_test_agent(project_dir.path(), "test-agent", "project-description");
+
+        let registry = load_agents_from_paths(
+            Some(builtin_dir.path()),
+            Some(user_dir.path()),
+            Some(project_dir.path()),
+        );
+
+        let agent = registry.get("test-agent").expect("should exist");
+        assert_eq!(
+            agent.frontmatter.description.as_deref(),
+            Some("project-description"),
+            "project-local should win"
+        );
+        assert_eq!(agent.source, AgentSource::ProjectLocal);
+    }
+
+    #[test]
+    fn user_global_overrides_builtin() {
+        let builtin_dir = tempfile::tempdir().unwrap();
+        let user_dir = tempfile::tempdir().unwrap();
+
+        write_test_agent(builtin_dir.path(), "shared-agent", "builtin-description");
+        write_test_agent(user_dir.path(), "shared-agent", "user-description");
+
+        let registry =
+            load_agents_from_paths(Some(builtin_dir.path()), Some(user_dir.path()), None);
+
+        let agent = registry.get("shared-agent").expect("should exist");
+        assert_eq!(
+            agent.frontmatter.description.as_deref(),
+            Some("user-description"),
+            "user-global should override built-in"
+        );
+        assert_eq!(agent.source, AgentSource::UserGlobal);
+    }
+
+    #[test]
+    fn agent_source_tagged_correctly() {
+        let builtin_dir = tempfile::tempdir().unwrap();
+        let user_dir = tempfile::tempdir().unwrap();
+        let project_dir = tempfile::tempdir().unwrap();
+
+        write_test_agent(builtin_dir.path(), "builtin-only", "b");
+        write_test_agent(user_dir.path(), "user-only", "u");
+        write_test_agent(project_dir.path(), "project-only", "p");
+
+        let registry = load_agents_from_paths(
+            Some(builtin_dir.path()),
+            Some(user_dir.path()),
+            Some(project_dir.path()),
+        );
+
+        assert_eq!(
+            registry.get("builtin-only").unwrap().source,
+            AgentSource::BuiltIn
+        );
+        assert_eq!(
+            registry.get("user-only").unwrap().source,
+            AgentSource::UserGlobal
+        );
+        assert_eq!(
+            registry.get("project-only").unwrap().source,
+            AgentSource::ProjectLocal
+        );
+    }
+
+    #[test]
+    fn registry_get_returns_agent() {
+        let dir = tempfile::tempdir().unwrap();
+        install_builtins_to(dir.path()).unwrap();
+        let registry = load_agents_from_paths(Some(dir.path()), None, None);
+        assert!(
+            registry.get("security-analyzer").is_some(),
+            "security-analyzer should be present"
+        );
+    }
+
+    #[test]
+    fn registry_list_returns_all() {
+        let dir = tempfile::tempdir().unwrap();
+        write_test_agent(dir.path(), "agent-z", "z");
+        write_test_agent(dir.path(), "agent-a", "a");
+        write_test_agent(dir.path(), "agent-m", "m");
+
+        let registry = load_agents_from_paths(Some(dir.path()), None, None);
+        let list = registry.list();
+        assert_eq!(list.len(), 3);
+        // Sorted by name
+        assert_eq!(list[0].frontmatter.name, "agent-a");
+        assert_eq!(list[1].frontmatter.name, "agent-m");
+        assert_eq!(list[2].frontmatter.name, "agent-z");
     }
 
     #[test]
