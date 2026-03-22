@@ -1,4 +1,20 @@
+use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
+
+use futures::StreamExt;
+use rig::completion::Message;
+use rig::prelude::*;
+use rig::streaming::StreamingChat;
 use serde::{Deserialize, Serialize};
+
+use crate::action::Action;
+use crate::ai::provider::AiProvider;
+use crate::approval::ApprovalHook;
+use crate::tools::{
+    EditTool, GlobTool, GrepTool, LsTool, ReadTool, ShellTool, WebFetchTool, WebSearchTool,
+    WriteTool,
+};
 
 /// Status of a completed agent execution.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -93,6 +109,386 @@ pub struct AgentExecParams {
     pub parent_session_id: Option<String>,
     pub project_path: String,
 }
+
+/// Spawn an agent task asynchronously.
+///
+/// Returns a `(JoinHandle, Arc<Mutex<String>>)` tuple:
+/// - The `JoinHandle` can be used to abort the task (Phase 11 cancellation).
+/// - The `Arc<Mutex<String>>` is a partial output buffer that accumulates
+///   assistant text and can be read after `abort()` to get partial results.
+///
+/// On completion, the task sends `Action::AgentCompleted` via `params.tx`.
+pub fn spawn_agent_task(
+    provider: &AiProvider,
+    params: AgentExecParams,
+) -> (tokio::task::JoinHandle<()>, Arc<Mutex<String>>) {
+    // Create the partial output buffer before spawning so the caller can hold
+    // a reference for cancellation (AGENTEXEC-05 / D-16).
+    let last_output: Arc<Mutex<String>> = Arc::new(Mutex::new(String::new()));
+    let last_output_for_task = Arc::clone(&last_output);
+
+    let provider = provider.clone();
+
+    let handle = tokio::spawn(async move {
+        run_agent_task(provider, params, last_output_for_task).await;
+    });
+
+    (handle, last_output)
+}
+
+/// Inner async implementation of agent execution.
+async fn run_agent_task(
+    provider: AiProvider,
+    params: AgentExecParams,
+    last_output: Arc<Mutex<String>>,
+) {
+    let start = Instant::now();
+    let agent_name = params.agent_name.clone();
+    let max_turns = params.max_turns;
+    let tx = params.tx.clone();
+
+    // Create a child session in SQLite (fire-and-forget).
+    let child_session_id: Option<String> = if let (Some(db), Some(parent_id)) =
+        (&params.db, &params.parent_session_id)
+    {
+        let db_clone = Arc::clone(db);
+        let project_path = params.project_path.clone();
+        let model = params.model.clone();
+        let parent_id = parent_id.clone();
+        let result = tokio::task::spawn_blocking(move || {
+            db_clone.create_child_session(&project_path, Some(&model), &parent_id)
+        })
+        .await;
+        match result {
+            Ok(Ok(record)) => Some(record.id),
+            Ok(Err(e)) => {
+                tracing::warn!("Failed to create child session: {e}");
+                None
+            }
+            Err(e) => {
+                tracing::warn!("spawn_blocking for child session failed: {e}");
+                None
+            }
+        }
+    } else {
+        None
+    };
+
+    // Build the initial message: task + optional context.
+    let prompt_text = if let Some(ctx) = &params.context {
+        if ctx.is_empty() {
+            params.task.clone()
+        } else {
+            format!("{}\n\n{}", params.task, ctx)
+        }
+    } else {
+        params.task.clone()
+    };
+
+    let history: Vec<Message> = vec![];
+
+    // Create an ApprovalHook for the agent with the effective tool filter.
+    // Agents share the parent approval channel so user sees approvals in the TUI.
+    // We create a fresh disconnected approval channel since agents may run in the
+    // background and we don't want to block on approval for spawned agents in
+    // Yolo-default mode. The tool filter on the hook enforces effective_tools.
+    let (agent_approval_tx, _agent_approval_rx) = tokio::sync::mpsc::unbounded_channel();
+    let effective_filter = Some(params.effective_tools.clone());
+    let hook = ApprovalHook::new(
+        params.approval_mode,
+        params.deny_rules.clone(),
+        agent_approval_tx,
+        tx.clone(),
+        max_turns as usize,
+        effective_filter,
+    );
+
+    let timeout_duration = Duration::from_secs(u64::from(params.max_time_minutes) * 60);
+
+    // Build agent and run with timeout based on provider type.
+    let result = match &provider {
+        AiProvider::Bedrock { client, .. } => {
+            run_bedrock_agent(
+                client,
+                &params.model,
+                &params.system_prompt,
+                &params.effective_tools,
+                params.working_dir.clone(),
+                params.brave_api_key.clone(),
+                hook,
+                max_turns as usize,
+                history,
+                prompt_text,
+                timeout_duration,
+                Arc::clone(&last_output),
+            )
+            .await
+        }
+        AiProvider::OpenRouter { client, .. } => {
+            run_openrouter_agent(
+                client,
+                &params.model,
+                &params.system_prompt,
+                &params.effective_tools,
+                params.working_dir.clone(),
+                params.brave_api_key.clone(),
+                hook,
+                max_turns as usize,
+                history,
+                prompt_text,
+                timeout_duration,
+                Arc::clone(&last_output),
+            )
+            .await
+        }
+    };
+
+    let elapsed_secs = start.elapsed().as_secs();
+
+    // Save messages to child session (fire-and-forget).
+    if let (Some(db), Some(session_id)) = (&params.db, &child_session_id) {
+        let db_clone = Arc::clone(db);
+        let session_id = session_id.clone();
+        let task_text = params.task.clone();
+        let output_text = last_output
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone();
+        tokio::task::spawn_blocking(move || {
+            let _ = db_clone.save_message(&session_id, "user", &task_text, None, None);
+            if !output_text.is_empty() {
+                let _ = db_clone.save_message(&session_id, "assistant", &output_text, None, None);
+            }
+        });
+    }
+
+    // Build the AgentResult and send via action channel.
+    let (status, full_output, turns_completed) = result;
+    let agent_result = AgentResult::new(
+        agent_name,
+        status,
+        turns_completed,
+        max_turns,
+        elapsed_secs,
+        full_output,
+    );
+
+    let _ = tx.send(Action::AgentCompleted(agent_result));
+}
+
+/// Outcome from the agent streaming loop.
+type AgentOutcome = (AgentStatus, String, u32);
+
+/// Run a Bedrock agent with timeout.
+#[allow(clippy::too_many_arguments)]
+async fn run_bedrock_agent(
+    client: &rig_bedrock::client::Client,
+    model: &str,
+    system_prompt: &str,
+    effective_tools: &[String],
+    working_dir: PathBuf,
+    brave_api_key: Option<String>,
+    hook: ApprovalHook,
+    max_turns: usize,
+    history: Vec<Message>,
+    prompt: String,
+    timeout_duration: Duration,
+    last_output: Arc<Mutex<String>>,
+) -> AgentOutcome {
+    let agent = build_bedrock_agent(
+        client,
+        model,
+        system_prompt,
+        effective_tools,
+        working_dir,
+        brave_api_key,
+    );
+
+    let result = tokio::time::timeout(
+        timeout_duration,
+        run_agent_stream(agent, history, prompt, hook, max_turns, Arc::clone(&last_output)),
+    )
+    .await;
+
+    match result {
+        Ok(outcome) => outcome,
+        Err(_elapsed) => {
+            let partial = last_output
+                .lock()
+                .map(|g| g.clone())
+                .unwrap_or_default();
+            (AgentStatus::TimedOut, partial, 0)
+        }
+    }
+}
+
+/// Run an `OpenRouter` agent with timeout.
+#[allow(clippy::too_many_arguments)]
+async fn run_openrouter_agent(
+    client: &rig::providers::openrouter::Client,
+    model: &str,
+    system_prompt: &str,
+    effective_tools: &[String],
+    working_dir: PathBuf,
+    brave_api_key: Option<String>,
+    hook: ApprovalHook,
+    max_turns: usize,
+    history: Vec<Message>,
+    prompt: String,
+    timeout_duration: Duration,
+    last_output: Arc<Mutex<String>>,
+) -> AgentOutcome {
+    let agent = build_openrouter_agent(
+        client,
+        model,
+        system_prompt,
+        effective_tools,
+        working_dir,
+        brave_api_key,
+    );
+
+    let result = tokio::time::timeout(
+        timeout_duration,
+        run_agent_stream(agent, history, prompt, hook, max_turns, Arc::clone(&last_output)),
+    )
+    .await;
+
+    match result {
+        Ok(outcome) => outcome,
+        Err(_elapsed) => {
+            let partial = last_output
+                .lock()
+                .map(|g| g.clone())
+                .unwrap_or_default();
+            (AgentStatus::TimedOut, partial, 0)
+        }
+    }
+}
+
+/// Build a Bedrock agent with ALL tools registered.
+///
+/// Tool filtering is enforced via the `ApprovalHook`'s `effective_tool_filter`,
+/// not by selectively registering tools. This avoids Rig's type-level builder
+/// constraint where each `.tool()` call changes the builder type.
+fn build_bedrock_agent(
+    client: &rig_bedrock::client::Client,
+    model: &str,
+    system_prompt: &str,
+    _effective_tools: &[String],
+    working_dir: PathBuf,
+    brave_api_key: Option<String>,
+) -> rig::agent::Agent<rig_bedrock::completion::CompletionModel> {
+    client
+        .agent(model)
+        .preamble(system_prompt)
+        .max_tokens(4096)
+        .tool(ShellTool::new(working_dir.clone()))
+        .tool(ReadTool)
+        .tool(WriteTool)
+        .tool(EditTool)
+        .tool(GrepTool::new(working_dir.clone()))
+        .tool(GlobTool::new(working_dir))
+        .tool(LsTool)
+        .tool(WebFetchTool::new())
+        .tool(WebSearchTool::new(brave_api_key))
+        .build()
+}
+
+/// Build an `OpenRouter` agent with ALL tools registered.
+fn build_openrouter_agent(
+    client: &rig::providers::openrouter::Client,
+    model: &str,
+    system_prompt: &str,
+    _effective_tools: &[String],
+    working_dir: PathBuf,
+    brave_api_key: Option<String>,
+) -> rig::agent::Agent<rig::providers::openrouter::completion::CompletionModel> {
+    client
+        .agent(model)
+        .preamble(system_prompt)
+        .max_tokens(4096)
+        .tool(ShellTool::new(working_dir.clone()))
+        .tool(ReadTool)
+        .tool(WriteTool)
+        .tool(EditTool)
+        .tool(GrepTool::new(working_dir.clone()))
+        .tool(GlobTool::new(working_dir))
+        .tool(LsTool)
+        .tool(WebFetchTool::new())
+        .tool(WebSearchTool::new(brave_api_key))
+        .build()
+}
+
+/// Generic streaming loop for any agent type.
+///
+/// Accumulates assistant text into `last_output`. Returns
+/// `(status, full_output, turns_completed)`.
+async fn run_agent_stream<M>(
+    agent: rig::agent::Agent<M>,
+    history: Vec<Message>,
+    prompt: String,
+    hook: ApprovalHook,
+    max_turns: usize,
+    last_output: Arc<Mutex<String>>,
+) -> AgentOutcome
+where
+    M: rig::completion::CompletionModel + 'static,
+    M::StreamingResponse: Send + rig::completion::GetTokenUsage,
+{
+    use rig::agent::MultiTurnStreamItem;
+    use rig::streaming::StreamedAssistantContent;
+
+    let mut stream = agent
+        .stream_chat(&prompt, history)
+        .multi_turn(max_turns)
+        .with_hook(hook)
+        .await;
+
+    let mut full_output = String::new();
+
+    while let Some(item) = stream.next().await {
+        match item {
+            Ok(MultiTurnStreamItem::StreamAssistantItem(StreamedAssistantContent::Text(text))) => {
+                full_output.push_str(&text.text);
+                // Update the partial output buffer for external cancellation.
+                if let Ok(mut guard) = last_output.lock() {
+                    guard.clone_from(&full_output);
+                }
+            }
+            Err(e) => {
+                let err_str = e.to_string();
+                if err_str.contains("MaxTurnError") || err_str.contains("max turn limit") {
+                    // Max turns reached — still a Completed status.
+                    let turns = u32::try_from(max_turns).unwrap_or(u32::MAX);
+                    return (AgentStatus::Completed, full_output, turns);
+                }
+                tracing::warn!("Agent stream error: {err_str}");
+                break;
+            }
+            _ => {
+                // ToolCall, ToolResult, Final, FinalResponse, Reasoning etc.
+                // Not accumulated into the text output.
+            }
+        }
+    }
+
+    let turns = {
+        // We don't have direct access to the turn counter here, so approximate
+        // from the hook's turn count via the shared Arc. Since we consumed the
+        // hook in `.with_hook()`, we read 0 here as a safe fallback.
+        // Phase 11 tracking will improve this.
+        0u32
+    };
+
+    (AgentStatus::Completed, full_output, turns)
+}
+
+/// All tool names available for agent filtering.
+///
+/// Used by `SpawnAgentTool` to compute `effective_tools`.
+pub const ALL_TOOL_NAMES: &[&str] = &[
+    "shell", "read", "write", "edit", "grep", "glob", "ls", "web_fetch", "web_search",
+];
 
 #[cfg(test)]
 mod tests {
@@ -253,5 +649,19 @@ mod tests {
         );
         // 100 - 45 = 55 more lines
         assert!(r.display_output.contains("55 more lines"), "got: {}", r.display_output);
+    }
+
+    // -------------------------------------------------------------------------
+    // ALL_TOOL_NAMES constant test
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn all_tool_names_contains_expected() {
+        assert!(ALL_TOOL_NAMES.contains(&"shell"));
+        assert!(ALL_TOOL_NAMES.contains(&"read"));
+        assert!(ALL_TOOL_NAMES.contains(&"write"));
+        assert!(ALL_TOOL_NAMES.contains(&"grep"));
+        assert!(!ALL_TOOL_NAMES.contains(&"spawn_agent"));
+        assert!(!ALL_TOOL_NAMES.contains(&"save_memory"));
     }
 }

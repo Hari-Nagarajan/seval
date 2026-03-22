@@ -373,6 +373,7 @@ impl Chat {
                         approval_tx.clone(),
                         tx.clone(),
                         self.max_turns,
+                        None,
                     )
                 } else {
                     // Fallback: create a disconnected hook (approvals will fail gracefully)
@@ -383,6 +384,7 @@ impl Chat {
                         atx,
                         tx.clone(),
                         self.max_turns,
+                        None,
                     )
                 };
                 // Store the turn counter for status bar display.
