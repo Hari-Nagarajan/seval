@@ -235,9 +235,9 @@ dependencies = [
 
 [[package]]
 name = "aws-sdk-bedrockruntime"
-version = "1.127.0"
+version = "1.128.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7dcd5ccbed3bd50d342077d3f731de46d9608340386c87d07566c4c507891eda"
+checksum = "3949d34a5c329ed83e7146d2fc1ffc06473fdc9bcbc5fa3d3534abeb950569c5"
 dependencies = [
  "aws-credential-types",
  "aws-runtime",
@@ -502,9 +502,9 @@ dependencies = [
 
 [[package]]
 name = "aws-smithy-types"
-version = "1.4.6"
+version = "1.4.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d2b1117b3b2bbe166d11199b540ceed0d0f7676e36e7b962b5a437a9971eac75"
+checksum = "9d73dbfbaa8e4bc57b9045137680b958d274823509a360abfd8e1d514d40c95c"
 dependencies = [
  "base64-simd",
  "bytes",
