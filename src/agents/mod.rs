@@ -2,6 +2,7 @@
 //!
 //! Provides types and functions for loading AGENT.md files with TOML frontmatter.
 
+pub mod executor;
 pub mod types;
 
 use types::{AgentDef, AgentFrontmatter, AgentSource};
