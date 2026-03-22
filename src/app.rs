@@ -109,6 +109,9 @@ impl App {
 
         let mut chat = Chat::new(config, approval_tx, db).await;
         chat.register_action_handler(action_tx.clone())?;
+        // Wire the loaded agent registry into the chat component so spawned agents
+        // can reference agent definitions at runtime (Plan 03).
+        chat.set_agent_registry(agent_registry.clone());
 
         // Create a new session in the database.
         chat.init_session();
