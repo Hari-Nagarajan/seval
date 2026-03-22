@@ -15,13 +15,16 @@ use rig::streaming::StreamingChat;
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::action::Action;
+use crate::agents::AgentRegistry;
 use crate::ai::provider::AiProvider;
-use crate::approval::ApprovalHook;
+use crate::approval::{ApprovalHook, ApprovalRequest};
+use crate::config::ApprovalMode;
 use crate::session::db::Database;
 use crate::session::memory_tool::SaveMemoryTool;
+use crate::tools::spawn_agent::AgentHandleMap;
 use crate::tools::{
-    EditTool, GlobTool, GrepTool, LsTool, ReadTool, ShellTool, WebFetchTool, WebSearchTool,
-    WriteTool,
+    EditTool, GlobTool, GrepTool, LsTool, ReadTool, ShellTool, SpawnAgentTool, WebFetchTool,
+    WebSearchTool, WriteTool,
 };
 
 /// Parameters for spawning a streaming chat task.
@@ -46,6 +49,16 @@ pub struct StreamChatParams {
     pub db: Option<Arc<Database>>,
     /// Project path for memory tool scoping.
     pub project_path: String,
+    /// Agent registry for spawning agents.
+    pub agent_registry: Arc<AgentRegistry>,
+    /// Map of agent handles for cancellation support (AGENTEXEC-05).
+    pub agent_handles: AgentHandleMap,
+    /// Current session ID (passed to spawned agents as parent session ID).
+    pub parent_session_id: Option<String>,
+    /// Approval channel sender for spawned agents.
+    pub approval_tx: UnboundedSender<ApprovalRequest>,
+    /// Parent chat's approval mode (inherited by agents that don't specify their own).
+    pub parent_approval_mode: ApprovalMode,
 }
 
 /// Spawn a streaming chat task that bridges Rig's stream to the action channel.
@@ -74,14 +87,36 @@ pub fn spawn_streaming_chat(
         approval_hook,
         db,
         project_path,
+        agent_registry,
+        agent_handles,
+        parent_session_id,
+        approval_tx,
+        parent_approval_mode,
     } = params;
 
     // Build the SaveMemoryTool. If no database handle is provided, create an
     // in-memory fallback so the tool is always registered (saves silently fail).
-    let memory_db = db.unwrap_or_else(|| {
+    let memory_db = db.clone().unwrap_or_else(|| {
         Arc::new(Database::open_in_memory().expect("in-memory DB for memory tool"))
     });
-    let save_memory = SaveMemoryTool::new(memory_db, project_path);
+    let save_memory = SaveMemoryTool::new(Arc::clone(&memory_db), project_path.clone());
+
+    // Build the SpawnAgentTool with all required context for spawning agents.
+    let deny_rules = approval_hook.deny_rules().to_vec();
+    let spawn_agent_tool = SpawnAgentTool::new(
+        agent_registry,
+        Arc::new(provider.clone()),
+        tx.clone(),
+        approval_tx,
+        working_dir.clone(),
+        brave_api_key.clone(),
+        deny_rules,
+        parent_approval_mode,
+        db,
+        parent_session_id,
+        project_path,
+        agent_handles,
+    );
 
     match provider {
         AiProvider::Bedrock { client, model } => {
@@ -99,6 +134,7 @@ pub fn spawn_streaming_chat(
                 .tool(WebFetchTool::new())
                 .tool(WebSearchTool::new(brave_api_key))
                 .tool(save_memory)
+                .tool(spawn_agent_tool)
                 .build();
             spawn_stream_task(agent, history, prompt, tx, max_turns, approval_hook)
         }
@@ -117,6 +153,7 @@ pub fn spawn_streaming_chat(
                 .tool(WebFetchTool::new())
                 .tool(WebSearchTool::new(brave_api_key))
                 .tool(save_memory)
+                .tool(spawn_agent_tool)
                 .build();
             spawn_stream_task(agent, history, prompt, tx, max_turns, approval_hook)
         }
