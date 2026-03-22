@@ -137,6 +137,11 @@ impl ApprovalHook {
         self.turn_counter.load(Ordering::Relaxed)
     }
 
+    /// Get the deny rules slice.
+    pub fn deny_rules(&self) -> &[String] {
+        &self.deny_rules
+    }
+
     /// Get max turns for display.
     pub fn max_turns_for_display(&self) -> usize {
         self.max_turns

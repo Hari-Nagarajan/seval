@@ -19,6 +19,7 @@ use ratatui::widgets::ListState;
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::action::Action;
+use crate::agents::AgentRegistry;
 use crate::ai::provider::AiProvider;
 use crate::ai::streaming::{StreamChatParams, spawn_streaming_chat};
 use crate::ai::system_prompt::load_system_prompt;
@@ -127,6 +128,12 @@ pub struct Chat {
     pub(super) max_turns: usize,
     /// Approval channel sender (shared with `ApprovalHook`).
     pub(super) approval_tx: Option<tokio::sync::mpsc::UnboundedSender<ApprovalRequest>>,
+    /// Agent registry for spawning agents via the `spawn_agent` tool.
+    /// Wired in Plan 03; defaults to an empty registry until then.
+    pub(super) agent_registry: Arc<AgentRegistry>,
+    /// Map of spawned agent handles for cancellation support (Phase 11).
+    /// Wired in Plan 03; defaults to an empty map.
+    pub(super) agent_handles: crate::tools::spawn_agent::AgentHandleMap,
     /// Context window state tracking.
     pub(super) context_state: ContextState,
     /// Session state (DB, session ID, action channel).
@@ -186,6 +193,8 @@ impl Chat {
             deny_rules: config.tools.deny_rules.clone(),
             max_turns: config.tools.max_turns,
             approval_tx: Some(approval_tx),
+            agent_registry: Arc::new(AgentRegistry::default()),
+            agent_handles: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
             context_state: ContextState::new(128_000),
             streaming: StreamingState {
                 buffer: String::new(),
@@ -390,6 +399,10 @@ impl Chat {
                 // Store the turn counter for status bar display.
                 self.streaming.turn_counter = Some(hook.turn_counter());
                 let project_path = working_dir.to_string_lossy().to_string();
+                let approval_tx_for_spawn = self.approval_tx.clone().unwrap_or_else(|| {
+                    let (atx, _) = tokio::sync::mpsc::unbounded_channel();
+                    atx
+                });
                 let handle = spawn_streaming_chat(
                     provider,
                     StreamChatParams {
@@ -403,6 +416,11 @@ impl Chat {
                         approval_hook: hook,
                         db: self.session.db.clone(),
                         project_path,
+                        agent_registry: Arc::clone(&self.agent_registry),
+                        agent_handles: Arc::clone(&self.agent_handles),
+                        parent_session_id: self.session.session_id.clone(),
+                        approval_tx: approval_tx_for_spawn,
+                        parent_approval_mode: self.approval_mode,
                     },
                 );
                 self.streaming.task = Some(handle);
