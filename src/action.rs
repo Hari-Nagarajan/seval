@@ -115,4 +115,7 @@ pub enum Action {
     CancelStream,
     /// Display an informational system message in the chat.
     ShowSystemMessage(String),
+    /// A spawned agent completed execution (success, timeout, or cancellation).
+    #[strum(to_string = "AgentCompleted")]
+    AgentCompleted(crate::agents::executor::AgentResult),
 }
