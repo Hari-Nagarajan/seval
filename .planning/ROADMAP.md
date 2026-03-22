@@ -192,7 +192,7 @@ Plans:
 
 Plans:
 - [x] 10-01-PLAN.md — Agent execution types (AgentResult, AgentStatus, AgentExecParams), Action::AgentCompleted, SQLite migration 2
-- [ ] 10-02-PLAN.md — spawn_agent_task executor, SpawnAgentTool, filtered tool registration, streaming bridge integration
+- [x] 10-02-PLAN.md — spawn_agent_task executor, SpawnAgentTool, filtered tool registration, streaming bridge integration
 - [ ] 10-03-PLAN.md — Chat wiring: AgentCompleted handler, pending result queue, rig_history injection, end-to-end verification
 
 ### Phase 11: Agent UI and Management Commands
@@ -230,7 +230,7 @@ Phases execute in numeric order: 1 -> 2 -> ... -> 8 -> 9 -> 10 -> 11
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 9. Agent Definitions and Loading | 2/2 | Complete   | 2026-03-21 |
-| 10. Agent Execution and Result Communication | 1/3 | In Progress|  |
+| 10. Agent Execution and Result Communication | 2/3 | In Progress|  |
 | 11. Agent UI and Management Commands | 0/? | Not started | - |
 
 ---

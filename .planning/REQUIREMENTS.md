@@ -39,18 +39,18 @@ All 55 v1.0 requirements are complete. See traceability section for phase mappin
 
 ### Agent Execution
 
-- [ ] **AGENTEXEC-01**: AI can invoke `spawn_agent` tool with agent_name, task, and optional context — receives immediate confirmation while agent runs asynchronously
-- [ ] **AGENTEXEC-02**: Spawned agent runs via `tokio::spawn` with its own isolated `Vec<Message>` history (not the parent's conversation)
-- [ ] **AGENTEXEC-03**: Spawned agent's tool set is filtered per `allowed_tools` / `denied_tools` from its definition
-- [ ] **AGENTEXEC-04**: Spawned agent respects `max_turns` (turn counter) and `max_time_minutes` (tokio timeout), returning partial results on limit
-- [ ] **AGENTEXEC-05**: User can cancel a running agent via `/agents cancel <name>`, terminating the task and returning partial results
-- [ ] **AGENTEXEC-06**: Nested agent spawning is prevented — `spawn_agent` tool is not registered within agent tool sets
+- [x] **AGENTEXEC-01**: AI can invoke `spawn_agent` tool with agent_name, task, and optional context — receives immediate confirmation while agent runs asynchronously
+- [x] **AGENTEXEC-02**: Spawned agent runs via `tokio::spawn` with its own isolated `Vec<Message>` history (not the parent's conversation)
+- [x] **AGENTEXEC-03**: Spawned agent's tool set is filtered per `allowed_tools` / `denied_tools` from its definition
+- [x] **AGENTEXEC-04**: Spawned agent respects `max_turns` (turn counter) and `max_time_minutes` (tokio timeout), returning partial results on limit
+- [x] **AGENTEXEC-05**: User can cancel a running agent via `/agents cancel <name>`, terminating the task and returning partial results
+- [x] **AGENTEXEC-06**: Nested agent spawning is prevented — `spawn_agent` tool is not registered within agent tool sets
 
 ### Result Communication
 
-- [ ] **AGENTRES-01**: Agent result is delivered to parent AI via `Action::AgentCompleted` and displayed as a formatted system message in chat
+- [x] **AGENTRES-01**: Agent result is delivered to parent AI via `Action::AgentCompleted` and displayed as a formatted system message in chat
 - [ ] **AGENTRES-02**: Agent output is injected into the parent's `rig_history` so the AI can reference findings on the next turn
-- [ ] **AGENTRES-03**: Agent conversation is stored in SQLite as a child session with `parent_session_id` linking to parent
+- [x] **AGENTRES-03**: Agent conversation is stored in SQLite as a child session with `parent_session_id` linking to parent
 
 ### Built-in Agents
 
@@ -109,15 +109,15 @@ Deferred beyond v2.0. Tracked but not in current roadmap.
 |-------------|-------|--------|
 | AGENTDEF-01 | Phase 9 | Complete |
 | AGENTDEF-02 | Phase 9 | Complete |
-| AGENTEXEC-01 | Phase 10 | Pending |
-| AGENTEXEC-02 | Phase 10 | Pending |
-| AGENTEXEC-03 | Phase 10 | Pending |
-| AGENTEXEC-04 | Phase 10 | Pending |
-| AGENTEXEC-05 | Phase 10 | Pending |
-| AGENTEXEC-06 | Phase 10 | Pending |
-| AGENTRES-01 | Phase 10 | Pending |
+| AGENTEXEC-01 | Phase 10 | Complete |
+| AGENTEXEC-02 | Phase 10 | Complete |
+| AGENTEXEC-03 | Phase 10 | Complete |
+| AGENTEXEC-04 | Phase 10 | Complete |
+| AGENTEXEC-05 | Phase 10 | Complete |
+| AGENTEXEC-06 | Phase 10 | Complete |
+| AGENTRES-01 | Phase 10 | Complete |
 | AGENTRES-02 | Phase 10 | Pending |
-| AGENTRES-03 | Phase 10 | Pending |
+| AGENTRES-03 | Phase 10 | Complete |
 | AGENTBI-01 | Phase 9 | Complete |
 | AGENTBI-02 | Phase 9 | Complete |
 | AGENTCMD-01 | Phase 11 | Pending |
