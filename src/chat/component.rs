@@ -371,7 +371,8 @@ impl Chat {
                 result.full_output,
             );
             // Rig has no System variant -- inject as user message (same pattern as System->rig_message)
-            self.rig_history.push(rig::message::Message::user(injection));
+            self.rig_history
+                .push(rig::message::Message::user(injection));
         }
 
         // Add user message.
@@ -972,11 +973,7 @@ impl Component for Chat {
                     result.max_turns,
                     result.elapsed_secs,
                 );
-                let display_text = format!(
-                    "{}\n\n{}",
-                    status_line,
-                    result.display_output,
-                );
+                let display_text = format!("{}\n\n{}", status_line, result.display_output,);
                 // Show as system message in chat (visible immediately)
                 self.add_system_message(display_text);
 

@@ -70,8 +70,7 @@ impl Default for AgentRegistry {
 
 /// Returns `~/.seval/agents/default/` — where built-in agents are installed.
 fn builtin_agents_dir() -> Option<std::path::PathBuf> {
-    directories::BaseDirs::new()
-        .map(|b| b.home_dir().join(".seval").join("agents").join("default"))
+    directories::BaseDirs::new().map(|b| b.home_dir().join(".seval").join("agents").join("default"))
 }
 
 /// Returns `~/.seval/agents/` — the user-global agent directory.
@@ -104,8 +103,8 @@ pub fn install_builtins_to(dir: &std::path::Path) -> anyhow::Result<()> {
 ///
 /// Always overwrites (D-12). Non-fatal on failure — callers should `tracing::warn` on error.
 pub fn install_builtins() -> anyhow::Result<()> {
-    let dir = builtin_agents_dir()
-        .ok_or_else(|| anyhow::anyhow!("cannot determine home directory"))?;
+    let dir =
+        builtin_agents_dir().ok_or_else(|| anyhow::anyhow!("cannot determine home directory"))?;
     install_builtins_to(&dir)
 }
 
@@ -492,22 +491,29 @@ Minimal body.
             resolve_for_openrouter("sonnet"),
             "anthropic/claude-sonnet-4-6"
         );
-        assert_eq!(
-            resolve_for_openrouter("unknown-alias"),
-            "unknown-alias"
-        );
+        assert_eq!(resolve_for_openrouter("unknown-alias"), "unknown-alias");
     }
 
     #[test]
     fn temperature_clamping() {
         // Test via parse_agent_file which applies clamping
-        let high_temp = "+++\nname = \"t\"\nmodel = \"s\"\nmax_turns = 1\ntemperature = 1.5\n+++\nbody\n";
+        let high_temp =
+            "+++\nname = \"t\"\nmodel = \"s\"\nmax_turns = 1\ntemperature = 1.5\n+++\nbody\n";
         let (fm, _) = parse_agent_file(high_temp).expect("should parse");
-        assert!((fm.temperature - 1.0).abs() < f64::EPSILON, "expected 1.0, got {}", fm.temperature);
+        assert!(
+            (fm.temperature - 1.0).abs() < f64::EPSILON,
+            "expected 1.0, got {}",
+            fm.temperature
+        );
 
-        let low_temp = "+++\nname = \"t\"\nmodel = \"s\"\nmax_turns = 1\ntemperature = -0.5\n+++\nbody\n";
+        let low_temp =
+            "+++\nname = \"t\"\nmodel = \"s\"\nmax_turns = 1\ntemperature = -0.5\n+++\nbody\n";
         let (fm, _) = parse_agent_file(low_temp).expect("should parse");
-        assert!((fm.temperature - 0.0).abs() < f64::EPSILON, "expected 0.0, got {}", fm.temperature);
+        assert!(
+            (fm.temperature - 0.0).abs() < f64::EPSILON,
+            "expected 0.0, got {}",
+            fm.temperature
+        );
     }
 
     #[test]
@@ -545,7 +551,10 @@ Minimal body.
         let first = std::fs::read_to_string(dir.path().join("security-analyzer.md")).unwrap();
         install_builtins_to(dir.path()).unwrap();
         let second = std::fs::read_to_string(dir.path().join("security-analyzer.md")).unwrap();
-        assert_eq!(first, second, "second install should produce identical files");
+        assert_eq!(
+            first, second,
+            "second install should produce identical files"
+        );
     }
 
     #[test]
@@ -576,7 +585,11 @@ Minimal body.
     fn load_tier_skips_invalid_md() {
         let dir = tempfile::tempdir().unwrap();
         // Write a file with invalid TOML frontmatter
-        std::fs::write(dir.path().join("bad.md"), "+++\nnot_valid = {{{{}\n+++\nbody\n").unwrap();
+        std::fs::write(
+            dir.path().join("bad.md"),
+            "+++\nnot_valid = {{{{}\n+++\nbody\n",
+        )
+        .unwrap();
 
         let mut map = std::collections::HashMap::new();
         load_tier(dir.path(), AgentSource::BuiltIn, &mut map);

@@ -14,7 +14,7 @@ use serde::Deserialize;
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::action::Action;
-use crate::agents::executor::{AgentExecParams, ALL_TOOL_NAMES, spawn_agent_task};
+use crate::agents::executor::{ALL_TOOL_NAMES, AgentExecParams, spawn_agent_task};
 use crate::agents::types::AgentDef;
 use crate::agents::{AgentRegistry, effective_tools, resolve_model_alias};
 use crate::ai::provider::AiProvider;
@@ -148,8 +148,10 @@ impl Tool for SpawnAgentTool {
             .ok_or_else(|| SpawnAgentError::AgentNotFound(args.agent_name.clone()))?;
 
         // Compute effective tools using allowlist-first semantics (D-06).
-        let all_tool_names: Vec<String> =
-            ALL_TOOL_NAMES.iter().map(std::string::ToString::to_string).collect();
+        let all_tool_names: Vec<String> = ALL_TOOL_NAMES
+            .iter()
+            .map(std::string::ToString::to_string)
+            .collect();
         let effective: Vec<String> = effective_tools(
             &agent.frontmatter.allowed_tools,
             &agent.frontmatter.denied_tools,

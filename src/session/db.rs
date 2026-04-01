@@ -624,7 +624,9 @@ mod tests {
     #[test]
     fn create_child_session_sets_parent_id() {
         let db = Database::open_in_memory().unwrap();
-        let parent = db.create_session("/tmp/project", Some("claude-sonnet")).unwrap();
+        let parent = db
+            .create_session("/tmp/project", Some("claude-sonnet"))
+            .unwrap();
         let child = db
             .create_child_session("/tmp/project", Some("claude-haiku"), &parent.id)
             .unwrap();
@@ -657,7 +659,10 @@ mod tests {
 
         // Deleting the parent should fail due to FK constraint (no ON DELETE CASCADE).
         let result = db.delete_session(&parent.id);
-        assert!(result.is_err(), "deleting parent with child sessions should fail");
+        assert!(
+            result.is_err(),
+            "deleting parent with child sessions should fail"
+        );
     }
 
     #[test]
@@ -683,7 +688,10 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert!(parent_id.is_none(), "new row should have null parent_session_id");
+        assert!(
+            parent_id.is_none(),
+            "new row should have null parent_session_id"
+        );
     }
 
     #[test]
