@@ -149,31 +149,30 @@ async fn run_agent_task(
     let tx = params.tx.clone();
 
     // Create a child session in SQLite (fire-and-forget).
-    let child_session_id: Option<String> = if let (Some(db), Some(parent_id)) =
-        (&params.db, &params.parent_session_id)
-    {
-        let db_clone = Arc::clone(db);
-        let project_path = params.project_path.clone();
-        let model = params.model.clone();
-        let parent_id = parent_id.clone();
-        let result = tokio::task::spawn_blocking(move || {
-            db_clone.create_child_session(&project_path, Some(&model), &parent_id)
-        })
-        .await;
-        match result {
-            Ok(Ok(record)) => Some(record.id),
-            Ok(Err(e)) => {
-                tracing::warn!("Failed to create child session: {e}");
-                None
+    let child_session_id: Option<String> =
+        if let (Some(db), Some(parent_id)) = (&params.db, &params.parent_session_id) {
+            let db_clone = Arc::clone(db);
+            let project_path = params.project_path.clone();
+            let model = params.model.clone();
+            let parent_id = parent_id.clone();
+            let result = tokio::task::spawn_blocking(move || {
+                db_clone.create_child_session(&project_path, Some(&model), &parent_id)
+            })
+            .await;
+            match result {
+                Ok(Ok(record)) => Some(record.id),
+                Ok(Err(e)) => {
+                    tracing::warn!("Failed to create child session: {e}");
+                    None
+                }
+                Err(e) => {
+                    tracing::warn!("spawn_blocking for child session failed: {e}");
+                    None
+                }
             }
-            Err(e) => {
-                tracing::warn!("spawn_blocking for child session failed: {e}");
-                None
-            }
-        }
-    } else {
-        None
-    };
+        } else {
+            None
+        };
 
     // Build the initial message: task + optional context.
     let prompt_text = if let Some(ctx) = &params.context {
@@ -315,17 +314,21 @@ async fn run_bedrock_agent(
 
     let result = tokio::time::timeout(
         timeout_duration,
-        run_agent_stream(agent, history, prompt, hook, max_turns, Arc::clone(&last_output)),
+        run_agent_stream(
+            agent,
+            history,
+            prompt,
+            hook,
+            max_turns,
+            Arc::clone(&last_output),
+        ),
     )
     .await;
 
     match result {
         Ok(outcome) => outcome,
         Err(_elapsed) => {
-            let partial = last_output
-                .lock()
-                .map(|g| g.clone())
-                .unwrap_or_default();
+            let partial = last_output.lock().map(|g| g.clone()).unwrap_or_default();
             let timeout_turns =
                 u32::try_from(turn_counter.load(Ordering::Relaxed)).unwrap_or(u32::MAX);
             (AgentStatus::TimedOut, partial, timeout_turns)
@@ -361,17 +364,21 @@ async fn run_openrouter_agent(
 
     let result = tokio::time::timeout(
         timeout_duration,
-        run_agent_stream(agent, history, prompt, hook, max_turns, Arc::clone(&last_output)),
+        run_agent_stream(
+            agent,
+            history,
+            prompt,
+            hook,
+            max_turns,
+            Arc::clone(&last_output),
+        ),
     )
     .await;
 
     match result {
         Ok(outcome) => outcome,
         Err(_elapsed) => {
-            let partial = last_output
-                .lock()
-                .map(|g| g.clone())
-                .unwrap_or_default();
+            let partial = last_output.lock().map(|g| g.clone()).unwrap_or_default();
             let timeout_turns =
                 u32::try_from(turn_counter.load(Ordering::Relaxed)).unwrap_or(u32::MAX);
             (AgentStatus::TimedOut, partial, timeout_turns)
@@ -490,8 +497,7 @@ where
         }
     }
 
-    let turns =
-        u32::try_from(turn_counter.load(Ordering::Relaxed)).unwrap_or(u32::MAX);
+    let turns = u32::try_from(turn_counter.load(Ordering::Relaxed)).unwrap_or(u32::MAX);
 
     (AgentStatus::Completed, full_output, turns)
 }
@@ -500,7 +506,15 @@ where
 ///
 /// Used by `SpawnAgentTool` to compute `effective_tools`.
 pub const ALL_TOOL_NAMES: &[&str] = &[
-    "shell", "read", "write", "edit", "grep", "glob", "ls", "web_fetch", "web_search",
+    "shell",
+    "read",
+    "write",
+    "edit",
+    "grep",
+    "glob",
+    "ls",
+    "web_fetch",
+    "web_search",
 ];
 
 #[cfg(test)]
@@ -618,7 +632,10 @@ mod tests {
             5,
             full_output.clone(),
         );
-        assert_eq!(r.display_output, full_output, "exactly 50 lines should not be truncated");
+        assert_eq!(
+            r.display_output, full_output,
+            "exactly 50 lines should not be truncated"
+        );
     }
 
     #[test]
@@ -637,10 +654,7 @@ mod tests {
         let display_lines: Vec<&str> = r.display_output.lines().collect();
         // Last line should be the trailer
         let last = display_lines.last().unwrap();
-        assert!(
-            last.contains("more lines"),
-            "expected trailer, got: {last}"
-        );
+        assert!(last.contains("more lines"), "expected trailer, got: {last}");
         // Trailer shows 51 - 45 = 6 more lines
         assert!(last.contains("6"), "expected 6 more lines, got: {last}");
         // First 45 lines are preserved
@@ -661,7 +675,11 @@ mod tests {
             full_output,
         );
         // 100 - 45 = 55 more lines
-        assert!(r.display_output.contains("55 more lines"), "got: {}", r.display_output);
+        assert!(
+            r.display_output.contains("55 more lines"),
+            "got: {}",
+            r.display_output
+        );
     }
 
     // -------------------------------------------------------------------------
