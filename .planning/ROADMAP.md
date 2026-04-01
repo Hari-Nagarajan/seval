@@ -26,7 +26,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 ### v2.0 Sub-Agent System (Active)
 
 - [x] **Phase 9: Agent Definitions and Loading** - AGENT.md format, layered directory loading, three built-in agents (completed 2026-03-21)
-- [ ] **Phase 10: Agent Execution and Result Communication** - spawn_agent tool, async execution, result delivery, child sessions
+- [x] **Phase 10: Agent Execution and Result Communication** - spawn_agent tool, async execution, result delivery, child sessions (completed 2026-04-01)
 - [ ] **Phase 11: Agent UI and Management Commands** - Sidebar live display, /agents slash command suite
 
 ## Phase Details
@@ -193,7 +193,7 @@ Plans:
 Plans:
 - [x] 10-01-PLAN.md — Agent execution types (AgentResult, AgentStatus, AgentExecParams), Action::AgentCompleted, SQLite migration 2
 - [x] 10-02-PLAN.md — spawn_agent_task executor, SpawnAgentTool, filtered tool registration, streaming bridge integration
-- [ ] 10-03-PLAN.md — Chat wiring: AgentCompleted handler, pending result queue, rig_history injection, end-to-end verification
+- [x] 10-03-PLAN.md — Chat wiring: AgentCompleted handler, pending result queue, rig_history injection, end-to-end verification
 
 ### Phase 11: Agent UI and Management Commands
 **Goal**: Users have full visibility into running agents and can manage them through a complete slash command suite
@@ -230,7 +230,7 @@ Phases execute in numeric order: 1 -> 2 -> ... -> 8 -> 9 -> 10 -> 11
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 9. Agent Definitions and Loading | 2/2 | Complete   | 2026-03-21 |
-| 10. Agent Execution and Result Communication | 2/3 | In Progress|  |
+| 10. Agent Execution and Result Communication | 3/3 | Complete   | 2026-04-01 |
 | 11. Agent UI and Management Commands | 0/? | Not started | - |
 
 ---

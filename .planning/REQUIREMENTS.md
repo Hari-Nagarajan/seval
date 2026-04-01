@@ -49,7 +49,7 @@ All 55 v1.0 requirements are complete. See traceability section for phase mappin
 ### Result Communication
 
 - [x] **AGENTRES-01**: Agent result is delivered to parent AI via `Action::AgentCompleted` and displayed as a formatted system message in chat
-- [ ] **AGENTRES-02**: Agent output is injected into the parent's `rig_history` so the AI can reference findings on the next turn
+- [x] **AGENTRES-02**: Agent output is injected into the parent's `rig_history` so the AI can reference findings on the next turn
 - [x] **AGENTRES-03**: Agent conversation is stored in SQLite as a child session with `parent_session_id` linking to parent
 
 ### Built-in Agents
@@ -116,7 +116,7 @@ Deferred beyond v2.0. Tracked but not in current roadmap.
 | AGENTEXEC-05 | Phase 10 | Complete |
 | AGENTEXEC-06 | Phase 10 | Complete |
 | AGENTRES-01 | Phase 10 | Complete |
-| AGENTRES-02 | Phase 10 | Pending |
+| AGENTRES-02 | Phase 10 | Complete |
 | AGENTRES-03 | Phase 10 | Complete |
 | AGENTBI-01 | Phase 9 | Complete |
 | AGENTBI-02 | Phase 9 | Complete |
