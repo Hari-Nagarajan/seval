@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -205,6 +206,11 @@ async fn run_agent_task(
 
     let timeout_duration = Duration::from_secs(u64::from(params.max_time_minutes) * 60);
 
+    // Clone the turn counter Arc before the hook is consumed by run_*_agent.
+    // This allows reading the actual turn count after stream completion and in
+    // timeout branches (AGENTEXEC-04).
+    let turn_counter = hook.turn_counter();
+
     // Build agent and run with timeout based on provider type.
     let result = match &provider {
         AiProvider::Bedrock { client, .. } => {
@@ -221,6 +227,7 @@ async fn run_agent_task(
                 prompt_text,
                 timeout_duration,
                 Arc::clone(&last_output),
+                Arc::clone(&turn_counter),
             )
             .await
         }
@@ -238,6 +245,7 @@ async fn run_agent_task(
                 prompt_text,
                 timeout_duration,
                 Arc::clone(&last_output),
+                Arc::clone(&turn_counter),
             )
             .await
         }
@@ -294,6 +302,7 @@ async fn run_bedrock_agent(
     prompt: String,
     timeout_duration: Duration,
     last_output: Arc<Mutex<String>>,
+    turn_counter: Arc<AtomicUsize>,
 ) -> AgentOutcome {
     let agent = build_bedrock_agent(
         client,
@@ -317,7 +326,9 @@ async fn run_bedrock_agent(
                 .lock()
                 .map(|g| g.clone())
                 .unwrap_or_default();
-            (AgentStatus::TimedOut, partial, 0)
+            let timeout_turns =
+                u32::try_from(turn_counter.load(Ordering::Relaxed)).unwrap_or(u32::MAX);
+            (AgentStatus::TimedOut, partial, timeout_turns)
         }
     }
 }
@@ -337,6 +348,7 @@ async fn run_openrouter_agent(
     prompt: String,
     timeout_duration: Duration,
     last_output: Arc<Mutex<String>>,
+    turn_counter: Arc<AtomicUsize>,
 ) -> AgentOutcome {
     let agent = build_openrouter_agent(
         client,
@@ -360,7 +372,9 @@ async fn run_openrouter_agent(
                 .lock()
                 .map(|g| g.clone())
                 .unwrap_or_default();
-            (AgentStatus::TimedOut, partial, 0)
+            let timeout_turns =
+                u32::try_from(turn_counter.load(Ordering::Relaxed)).unwrap_or(u32::MAX);
+            (AgentStatus::TimedOut, partial, timeout_turns)
         }
     }
 }
@@ -438,6 +452,10 @@ where
     use rig::agent::MultiTurnStreamItem;
     use rig::streaming::StreamedAssistantContent;
 
+    // Clone the turn counter Arc before .with_hook() consumes the hook so we
+    // can read the actual turn count after the stream ends (AGENTEXEC-04).
+    let turn_counter = hook.turn_counter();
+
     let mut stream = agent
         .stream_chat(&prompt, history)
         .multi_turn(max_turns)
@@ -472,13 +490,8 @@ where
         }
     }
 
-    let turns = {
-        // We don't have direct access to the turn counter here, so approximate
-        // from the hook's turn count via the shared Arc. Since we consumed the
-        // hook in `.with_hook()`, we read 0 here as a safe fallback.
-        // Phase 11 tracking will improve this.
-        0u32
-    };
+    let turns =
+        u32::try_from(turn_counter.load(Ordering::Relaxed)).unwrap_or(u32::MAX);
 
     (AgentStatus::Completed, full_output, turns)
 }
