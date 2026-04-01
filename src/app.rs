@@ -21,6 +21,7 @@ use ratatui::widgets::Paragraph;
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 
 use crate::action::Action;
+use crate::agents::AgentRegistry;
 use crate::approval::ApprovalRequest;
 use crate::chat::Chat;
 use crate::colors;
@@ -67,6 +68,8 @@ pub struct App {
     wizard_mode: bool,
     /// Receiver for approval requests from the `ApprovalHook`.
     approval_rx: mpsc::UnboundedReceiver<ApprovalRequest>,
+    /// Registry of loaded agent definitions (populated at startup).
+    agent_registry: AgentRegistry,
 }
 
 impl App {
@@ -95,8 +98,20 @@ impl App {
             }
         };
 
+        // Install built-in agents to ~/.seval/agents/default/ (overwrite every startup per D-12)
+        if let Err(e) = crate::agents::install_builtins() {
+            tracing::warn!("failed to install built-in agents: {e}");
+        }
+
+        // Load agent definitions from three-tier directory hierarchy
+        let agent_registry = crate::agents::load_agents();
+        tracing::info!("loaded {} agent definition(s)", agent_registry.len());
+
         let mut chat = Chat::new(config, approval_tx, db).await;
         chat.register_action_handler(action_tx.clone())?;
+        // Wire the loaded agent registry into the chat component so spawned agents
+        // can reference agent definitions at runtime (Plan 03).
+        chat.set_agent_registry(agent_registry.clone());
 
         // Create a new session in the database.
         chat.init_session();
@@ -141,6 +156,7 @@ impl App {
             approval_mode,
             wizard_mode: false,
             approval_rx,
+            agent_registry,
         })
     }
 
@@ -175,7 +191,13 @@ impl App {
             approval_mode: ApprovalMode::Default,
             wizard_mode: true,
             approval_rx,
+            agent_registry: AgentRegistry::new(),
         })
+    }
+
+    /// Returns a reference to the loaded agent registry.
+    pub fn agent_registry(&self) -> &AgentRegistry {
+        &self.agent_registry
     }
 
     /// Run the main event loop.

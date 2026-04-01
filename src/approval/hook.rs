@@ -93,16 +93,27 @@ pub struct ApprovalHook {
     turn_counter: Arc<AtomicUsize>,
     /// Maximum turns for display purposes.
     max_turns: usize,
+    /// Optional allowlist of tool names for agent-scoped filtering.
+    ///
+    /// When `Some`, any tool not in the list is auto-skipped before the normal
+    /// approval logic. Used by spawned agents to enforce `effective_tools`.
+    /// Parent chat passes `None` (no change to existing behaviour).
+    effective_tool_filter: Option<Vec<String>>,
 }
 
 impl ApprovalHook {
     /// Create a new approval hook.
+    ///
+    /// Pass `effective_tool_filter = None` for the parent chat (all tools
+    /// allowed per the approval mode). Pass `Some(list)` for spawned agents
+    /// to restrict execution to only the tools in `list`.
     pub fn new(
         mode: ApprovalMode,
         deny_rules: Vec<String>,
         approval_tx: mpsc::UnboundedSender<ApprovalRequest>,
         action_tx: mpsc::UnboundedSender<Action>,
         max_turns: usize,
+        effective_tool_filter: Option<Vec<String>>,
     ) -> Self {
         Self {
             approval_tx,
@@ -112,6 +123,7 @@ impl ApprovalHook {
             approved_all: Arc::new(Mutex::new(HashSet::new())),
             turn_counter: Arc::new(AtomicUsize::new(0)),
             max_turns,
+            effective_tool_filter,
         }
     }
 
@@ -123,6 +135,11 @@ impl ApprovalHook {
     /// Get the current turn count.
     pub fn turn_count(&self) -> usize {
         self.turn_counter.load(Ordering::Relaxed)
+    }
+
+    /// Get the deny rules slice.
+    pub fn deny_rules(&self) -> &[String] {
+        &self.deny_rules
     }
 
     /// Get max turns for display.
@@ -188,6 +205,19 @@ impl<M: CompletionModel> PromptHook<M> for ApprovalHook {
         _internal_call_id: &str,
         args: &str,
     ) -> ToolCallHookAction {
+        // Check effective tool filter for agent-scoped restrictions.
+        // If the filter is set and this tool is not in the allowed list, skip it.
+        if let Some(ref filter) = self.effective_tool_filter
+            && !filter.iter().any(|t| t == tool_name)
+        {
+            let reason = format!("Tool '{tool_name}' not available for this agent");
+            let _ = self.action_tx.send(Action::ToolDenied {
+                name: tool_name.to_string(),
+                reason: reason.clone(),
+            });
+            return ToolCallHookAction::skip(reason);
+        }
+
         // Check auto-decide first
         if let Some(action) = self.should_auto_decide(tool_name, args) {
             // If this is a skip (denial), notify the TUI
@@ -332,13 +362,13 @@ mod tests {
     fn make_hook(mode: ApprovalMode) -> ApprovalHook {
         let (tx, _rx) = mpsc::unbounded_channel();
         let (atx, _arx) = mpsc::unbounded_channel();
-        ApprovalHook::new(mode, vec![], tx, atx, 25)
+        ApprovalHook::new(mode, vec![], tx, atx, 25, None)
     }
 
     fn make_hook_with_deny(mode: ApprovalMode, deny_rules: Vec<String>) -> ApprovalHook {
         let (tx, _rx) = mpsc::unbounded_channel();
         let (atx, _arx) = mpsc::unbounded_channel();
-        ApprovalHook::new(mode, deny_rules, tx, atx, 25)
+        ApprovalHook::new(mode, deny_rules, tx, atx, 25, None)
     }
 
     // Yolo mode: all categories auto-approved
@@ -450,7 +480,7 @@ mod tests {
     async fn test_approve_all_set() {
         let (tx, mut rx) = mpsc::unbounded_channel();
         let (atx, _arx) = mpsc::unbounded_channel();
-        let hook = ApprovalHook::new(ApprovalMode::Default, vec![], tx, atx, 25);
+        let hook = ApprovalHook::new(ApprovalMode::Default, vec![], tx, atx, 25, None);
 
         // Insert "shell" into approved_all set
         {

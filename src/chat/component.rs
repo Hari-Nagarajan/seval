@@ -19,6 +19,8 @@ use ratatui::widgets::ListState;
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::action::Action;
+use crate::agents::AgentRegistry;
+use crate::agents::executor::AgentResult;
 use crate::ai::provider::AiProvider;
 use crate::ai::streaming::{StreamChatParams, spawn_streaming_chat};
 use crate::ai::system_prompt::load_system_prompt;
@@ -127,6 +129,14 @@ pub struct Chat {
     pub(super) max_turns: usize,
     /// Approval channel sender (shared with `ApprovalHook`).
     pub(super) approval_tx: Option<tokio::sync::mpsc::UnboundedSender<ApprovalRequest>>,
+    /// Agent registry for spawning agents via the `spawn_agent` tool.
+    /// Wired in Plan 03; defaults to an empty registry until then.
+    pub(super) agent_registry: Arc<AgentRegistry>,
+    /// Map of spawned agent handles for cancellation support (Phase 11).
+    /// Wired in Plan 03; defaults to an empty map.
+    pub(super) agent_handles: crate::tools::spawn_agent::AgentHandleMap,
+    /// Pending agent results waiting to be injected into `rig_history` on next turn (D-01).
+    pub(super) pending_agent_results: Vec<AgentResult>,
     /// Context window state tracking.
     pub(super) context_state: ContextState,
     /// Session state (DB, session ID, action channel).
@@ -186,6 +196,9 @@ impl Chat {
             deny_rules: config.tools.deny_rules.clone(),
             max_turns: config.tools.max_turns,
             approval_tx: Some(approval_tx),
+            agent_registry: Arc::new(AgentRegistry::default()),
+            agent_handles: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
+            pending_agent_results: Vec::new(),
             context_state: ContextState::new(128_000),
             streaming: StreamingState {
                 buffer: String::new(),
@@ -251,6 +264,11 @@ impl Chat {
         }
         section.push_str("\nUse this context to inform your responses.");
         self.system_prompt.push_str(&section);
+    }
+
+    /// Set the agent registry (called by App after loading agents at startup).
+    pub fn set_agent_registry(&mut self, registry: AgentRegistry) {
+        self.agent_registry = Arc::new(registry);
     }
 
     /// Get the shared database handle (for use by App layer).
@@ -341,6 +359,22 @@ impl Chat {
 
     /// Send a chat message to the AI provider.
     fn send_message(&mut self, text: String) {
+        // D-01: Drain pending agent results and inject into rig_history before new turn
+        for result in self.pending_agent_results.drain(..) {
+            let injection = format!(
+                "=== Agent '{}' {} ===\nTurns: {}/{} | Time: {}s\n\n{}",
+                result.agent_name,
+                result.status_label(),
+                result.turns_completed,
+                result.max_turns,
+                result.elapsed_secs,
+                result.full_output,
+            );
+            // Rig has no System variant -- inject as user message (same pattern as System->rig_message)
+            self.rig_history
+                .push(rig::message::Message::user(injection));
+        }
+
         // Add user message.
         let user_msg = ChatMessage::new(Role::User, &text);
         let rendered_user = render_user_message(&text);
@@ -373,6 +407,7 @@ impl Chat {
                         approval_tx.clone(),
                         tx.clone(),
                         self.max_turns,
+                        None,
                     )
                 } else {
                     // Fallback: create a disconnected hook (approvals will fail gracefully)
@@ -383,11 +418,16 @@ impl Chat {
                         atx,
                         tx.clone(),
                         self.max_turns,
+                        None,
                     )
                 };
                 // Store the turn counter for status bar display.
                 self.streaming.turn_counter = Some(hook.turn_counter());
                 let project_path = working_dir.to_string_lossy().to_string();
+                let approval_tx_for_spawn = self.approval_tx.clone().unwrap_or_else(|| {
+                    let (atx, _) = tokio::sync::mpsc::unbounded_channel();
+                    atx
+                });
                 let handle = spawn_streaming_chat(
                     provider,
                     StreamChatParams {
@@ -401,6 +441,11 @@ impl Chat {
                         approval_hook: hook,
                         db: self.session.db.clone(),
                         project_path,
+                        agent_registry: Arc::clone(&self.agent_registry),
+                        agent_handles: Arc::clone(&self.agent_handles),
+                        parent_session_id: self.session.session_id.clone(),
+                        approval_tx: approval_tx_for_spawn,
+                        parent_approval_mode: self.approval_mode,
                     },
                 );
                 self.streaming.task = Some(handle);
@@ -916,6 +961,30 @@ impl Component for Chat {
             }
             Action::ShowSystemMessage(text) => {
                 self.add_system_message(text);
+                Ok(None)
+            }
+            Action::AgentCompleted(result) => {
+                // D-02: Immediate display in chat
+                let status_line = format!(
+                    "[Agent '{}' {} in {}/{} turns ({}s)]",
+                    result.agent_name,
+                    result.status_label(),
+                    result.turns_completed,
+                    result.max_turns,
+                    result.elapsed_secs,
+                );
+                let display_text = format!("{}\n\n{}", status_line, result.display_output,);
+                // Show as system message in chat (visible immediately)
+                self.add_system_message(display_text);
+
+                // Remove the agent's JoinHandle from the tracking map
+                if let Ok(mut handles) = self.agent_handles.lock() {
+                    handles.remove(&result.agent_name);
+                }
+
+                // D-01: Queue for next-turn injection into rig_history
+                self.pending_agent_results.push(result);
+
                 Ok(None)
             }
             Action::CancelStream => {

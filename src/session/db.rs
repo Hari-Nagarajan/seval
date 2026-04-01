@@ -53,6 +53,8 @@ const MIGRATIONS: &[&str] = &[
     CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id);
     CREATE INDEX IF NOT EXISTS idx_tool_calls_message ON tool_calls(message_id);
     CREATE INDEX IF NOT EXISTS idx_memory_project ON memory(project_path);",
+    // Version 2: Add parent_session_id for sub-agent child sessions
+    "ALTER TABLE sessions ADD COLUMN parent_session_id TEXT REFERENCES sessions(id)",
 ];
 
 /// Database handle wrapping a shared `SQLite` connection.
@@ -114,6 +116,30 @@ impl Database {
             params![id, project_path, model],
         )?;
         // Read back the full record to get server-generated defaults.
+        let record = conn.query_row(
+            "SELECT id, project_path, name, model, message_count, created_at, updated_at
+             FROM sessions WHERE id = ?1",
+            params![id],
+            map_session_row,
+        )?;
+        Ok(record)
+    }
+
+    /// Create a child session linked to a parent session.
+    ///
+    /// Used for agent sub-sessions (AGENTRES-03).
+    pub fn create_child_session(
+        &self,
+        project_path: &str,
+        model: Option<&str>,
+        parent_session_id: &str,
+    ) -> Result<SessionRecord> {
+        let id = uuid::Uuid::new_v4().to_string();
+        let conn = self.conn();
+        conn.execute(
+            "INSERT INTO sessions (id, project_path, model, parent_session_id) VALUES (?1, ?2, ?3, ?4)",
+            params![id, project_path, model, parent_session_id],
+        )?;
         let record = conn.query_row(
             "SELECT id, project_path, name, model, message_count, created_at, updated_at
              FROM sessions WHERE id = ?1",
@@ -593,6 +619,90 @@ mod tests {
         assert_eq!(memories.len(), 1);
         assert_eq!(memories[0].id, id1);
         assert_eq!(memories[0].content, "Keep this");
+    }
+
+    #[test]
+    fn create_child_session_sets_parent_id() {
+        let db = Database::open_in_memory().unwrap();
+        let parent = db
+            .create_session("/tmp/project", Some("claude-sonnet"))
+            .unwrap();
+        let child = db
+            .create_child_session("/tmp/project", Some("claude-haiku"), &parent.id)
+            .unwrap();
+
+        assert!(!child.id.is_empty());
+        assert_ne!(child.id, parent.id);
+        assert_eq!(child.project_path, "/tmp/project");
+        assert_eq!(child.model.as_deref(), Some("claude-haiku"));
+
+        // Verify parent_session_id is stored correctly via raw SQL.
+        let conn = db.conn();
+        let stored_parent_id: String = conn
+            .query_row(
+                "SELECT parent_session_id FROM sessions WHERE id = ?1",
+                params![child.id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(stored_parent_id, parent.id);
+    }
+
+    #[test]
+    fn create_child_session_parent_delete_blocked_by_fk() {
+        // With foreign_keys=ON, deleting the parent fails when children reference it.
+        let db = Database::open_in_memory().unwrap();
+        let parent = db.create_session("/tmp/project", None).unwrap();
+        let _child = db
+            .create_child_session("/tmp/project", None, &parent.id)
+            .unwrap();
+
+        // Deleting the parent should fail due to FK constraint (no ON DELETE CASCADE).
+        let result = db.delete_session(&parent.id);
+        assert!(
+            result.is_err(),
+            "deleting parent with child sessions should fail"
+        );
+    }
+
+    #[test]
+    fn migration_2_idempotent() {
+        // Run run_migrations twice on a fresh connection to confirm it's idempotent.
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;")
+            .unwrap();
+        run_migrations(&conn).unwrap();
+        // Running again should not error (version-gated).
+        run_migrations(&conn).unwrap();
+
+        // Verify parent_session_id column exists by inserting with it.
+        conn.execute(
+            "INSERT INTO sessions (id, project_path) VALUES ('test-id', '/tmp')",
+            [],
+        )
+        .unwrap();
+        let parent_id: Option<String> = conn
+            .query_row(
+                "SELECT parent_session_id FROM sessions WHERE id = 'test-id'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(
+            parent_id.is_none(),
+            "new row should have null parent_session_id"
+        );
+    }
+
+    #[test]
+    fn create_session_backward_compatible_after_migration_2() {
+        // Existing create_session should still work (parent_session_id is nullable).
+        let db = Database::open_in_memory().unwrap();
+        let session = db
+            .create_session("/tmp/project", Some("claude-sonnet"))
+            .unwrap();
+        assert!(!session.id.is_empty());
+        assert_eq!(session.model.as_deref(), Some("claude-sonnet"));
     }
 
     #[test]
