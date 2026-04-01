@@ -656,7 +656,7 @@ mod tests {
         let last = display_lines.last().unwrap();
         assert!(last.contains("more lines"), "expected trailer, got: {last}");
         // Trailer shows 51 - 45 = 6 more lines
-        assert!(last.contains("6"), "expected 6 more lines, got: {last}");
+        assert!(last.contains('6'), "expected 6 more lines, got: {last}");
         // First 45 lines are preserved
         assert_eq!(display_lines[0], "line 1");
         assert_eq!(display_lines[44], "line 45");
