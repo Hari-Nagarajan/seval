@@ -321,8 +321,7 @@ impl Sidebar {
             let elapsed = entry.elapsed_secs.unwrap_or(0);
             let status_char = match entry.status {
                 AgentSidebarStatus::Completed => "\u{2713}",
-                AgentSidebarStatus::Cancelled => "!",
-                AgentSidebarStatus::TimedOut => "!",
+                AgentSidebarStatus::Cancelled | AgentSidebarStatus::TimedOut => "!",
                 AgentSidebarStatus::Running => "?", // shouldn't happen
             };
             let color = match entry.status {

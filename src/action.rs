@@ -115,7 +115,7 @@ pub enum Action {
     CancelStream,
     /// Display an informational system message in the chat.
     ShowSystemMessage(String),
-    /// A new agent has been spawned (sent from SpawnAgentTool::call).
+    /// A new agent has been spawned (sent from `SpawnAgentTool::call`).
     AgentStarted {
         /// Name of the spawned agent.
         name: String,
