@@ -12,6 +12,7 @@ pub mod message;
 pub mod syntax;
 pub(crate) mod verbs;
 
+mod agents;
 mod approval;
 mod model_picker;
 mod persistence;

@@ -115,6 +115,22 @@ pub enum Action {
     CancelStream,
     /// Display an informational system message in the chat.
     ShowSystemMessage(String),
+    /// A new agent has been spawned (sent from `SpawnAgentTool::call`).
+    AgentStarted {
+        /// Name of the spawned agent.
+        name: String,
+        /// Maximum turns configured for the agent.
+        max_turns: u32,
+    },
+    /// Live turn counter update from a running agent executor.
+    AgentTurnUpdate {
+        /// Name of the agent being updated.
+        name: String,
+        /// Current turn number.
+        turn: u32,
+        /// Maximum turns configured for the agent.
+        max_turns: u32,
+    },
     /// A spawned agent completed execution (success, timeout, or cancellation).
     #[strum(to_string = "AgentCompleted")]
     AgentCompleted(crate::agents::executor::AgentResult),

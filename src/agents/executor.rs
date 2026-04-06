@@ -227,6 +227,8 @@ async fn run_agent_task(
                 timeout_duration,
                 Arc::clone(&last_output),
                 Arc::clone(&turn_counter),
+                tx.clone(),
+                agent_name.clone(),
             )
             .await
         }
@@ -245,6 +247,8 @@ async fn run_agent_task(
                 timeout_duration,
                 Arc::clone(&last_output),
                 Arc::clone(&turn_counter),
+                tx.clone(),
+                agent_name.clone(),
             )
             .await
         }
@@ -302,6 +306,8 @@ async fn run_bedrock_agent(
     timeout_duration: Duration,
     last_output: Arc<Mutex<String>>,
     turn_counter: Arc<AtomicUsize>,
+    tx: tokio::sync::mpsc::UnboundedSender<Action>,
+    agent_name: String,
 ) -> AgentOutcome {
     let agent = build_bedrock_agent(
         client,
@@ -321,6 +327,8 @@ async fn run_bedrock_agent(
             hook,
             max_turns,
             Arc::clone(&last_output),
+            tx,
+            agent_name,
         ),
     )
     .await;
@@ -352,6 +360,8 @@ async fn run_openrouter_agent(
     timeout_duration: Duration,
     last_output: Arc<Mutex<String>>,
     turn_counter: Arc<AtomicUsize>,
+    tx: tokio::sync::mpsc::UnboundedSender<Action>,
+    agent_name: String,
 ) -> AgentOutcome {
     let agent = build_openrouter_agent(
         client,
@@ -371,6 +381,8 @@ async fn run_openrouter_agent(
             hook,
             max_turns,
             Arc::clone(&last_output),
+            tx,
+            agent_name,
         ),
     )
     .await;
@@ -451,6 +463,8 @@ async fn run_agent_stream<M>(
     hook: ApprovalHook,
     max_turns: usize,
     last_output: Arc<Mutex<String>>,
+    tx: tokio::sync::mpsc::UnboundedSender<Action>,
+    agent_name: String,
 ) -> AgentOutcome
 where
     M: rig::completion::CompletionModel + 'static,
@@ -470,6 +484,7 @@ where
         .await;
 
     let mut full_output = String::new();
+    let mut last_turn_sent: usize = 0;
 
     while let Some(item) = stream.next().await {
         match item {
@@ -478,6 +493,16 @@ where
                 // Update the partial output buffer for external cancellation.
                 if let Ok(mut guard) = last_output.lock() {
                     guard.clone_from(&full_output);
+                }
+                // Send turn update if turn count has advanced (per D-06, Pitfall 1).
+                let current_turn = turn_counter.load(Ordering::Relaxed);
+                if current_turn != last_turn_sent {
+                    last_turn_sent = current_turn;
+                    let _ = tx.send(Action::AgentTurnUpdate {
+                        name: agent_name.clone(),
+                        turn: u32::try_from(current_turn).unwrap_or(u32::MAX),
+                        max_turns: u32::try_from(max_turns).unwrap_or(u32::MAX),
+                    });
                 }
             }
             Err(e) => {
