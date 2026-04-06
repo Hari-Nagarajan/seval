@@ -23,6 +23,8 @@ pub enum SlashCommand {
     Import(String),
     /// Export a session to SEVAL-CLI format: `/export [session_id]`.
     Export(Option<String>),
+    /// Agent management: `/agents [info <name>|status|cancel <name>|create <name>]`.
+    Agents(Option<String>),
     /// Unrecognized command.
     Unknown(String),
 }
@@ -58,6 +60,7 @@ impl SlashCommand {
                 }
             }
             "export" => Self::Export(arg),
+            "agents" => Self::Agents(arg),
             "quit" | "q" => Self::Quit,
             other => Self::Unknown(other.to_string()),
         })
@@ -76,6 +79,11 @@ Available commands:
   /export [id]   - Export session to SEVAL-CLI JSON (current if no id)
   /memory        - List project memories
   /memory delete <id> - Delete a memory entry
+  /agents        - List available agents
+  /agents info <name>   - Show agent configuration
+  /agents status        - Show running/completed agents
+  /agents cancel <name> - Cancel a running agent
+  /agents create <name> - Create new agent template
   /help          - Show this help message
   /clear         - Clear conversation history
   /quit or /q    - Quit the application"
@@ -173,6 +181,30 @@ mod tests {
     }
 
     #[test]
+    fn parse_agents_no_arg() {
+        assert_eq!(
+            SlashCommand::parse("/agents"),
+            Some(SlashCommand::Agents(None))
+        );
+    }
+
+    #[test]
+    fn parse_agents_with_subcommand() {
+        assert_eq!(
+            SlashCommand::parse("/agents info test-agent"),
+            Some(SlashCommand::Agents(Some("info test-agent".to_string())))
+        );
+    }
+
+    #[test]
+    fn parse_agents_status() {
+        assert_eq!(
+            SlashCommand::parse("/agents status"),
+            Some(SlashCommand::Agents(Some("status".to_string())))
+        );
+    }
+
+    #[test]
     fn help_text_is_not_empty() {
         let text = SlashCommand::help_text();
         assert!(text.contains("/model"));
@@ -182,5 +214,6 @@ mod tests {
         assert!(text.contains("/import"));
         assert!(text.contains("/export"));
         assert!(text.contains("/memory"));
+        assert!(text.contains("/agents"));
     }
 }

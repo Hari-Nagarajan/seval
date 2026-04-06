@@ -16,6 +16,7 @@ mod approval;
 mod model_picker;
 mod persistence;
 mod rendering;
+mod agents;
 mod sessions;
 mod tools;
 
