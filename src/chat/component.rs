@@ -1013,13 +1013,14 @@ impl Component for Chat {
 
                 // Update status tracking for /agents status
                 self.agent_status.remove(&result.agent_name);
-                self.completed_agent_log.push(super::agents::CompletedAgentInfo {
-                    name: result.agent_name.clone(),
-                    turns_completed: result.turns_completed,
-                    max_turns: result.max_turns,
-                    elapsed_secs: result.elapsed_secs,
-                    status: result.status_label().to_string(),
-                });
+                self.completed_agent_log
+                    .push(super::agents::CompletedAgentInfo {
+                        name: result.agent_name.clone(),
+                        turns_completed: result.turns_completed,
+                        max_turns: result.max_turns,
+                        elapsed_secs: result.elapsed_secs,
+                        status: result.status_label().to_string(),
+                    });
                 // Cap completed log at 10
                 if self.completed_agent_log.len() > 10 {
                     self.completed_agent_log.remove(0);

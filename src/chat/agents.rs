@@ -62,7 +62,9 @@ impl Chat {
     fn agents_list(&mut self) {
         let agents = self.agent_registry.list();
         if agents.is_empty() {
-            self.add_system_message("No agents available. Use /agents create <name> to scaffold one.".to_string());
+            self.add_system_message(
+                "No agents available. Use /agents create <name> to scaffold one.".to_string(),
+            );
             return;
         }
 

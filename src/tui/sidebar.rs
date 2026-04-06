@@ -764,7 +764,10 @@ mod tests {
         assert_eq!(sidebar.running_agents[0].name, "test-agent");
         assert_eq!(sidebar.running_agents[0].max_turns, 10);
         assert_eq!(sidebar.running_agents[0].turn, 0);
-        assert_eq!(sidebar.running_agents[0].status, AgentSidebarStatus::Running);
+        assert_eq!(
+            sidebar.running_agents[0].status,
+            AgentSidebarStatus::Running
+        );
     }
 
     #[test]
@@ -783,7 +786,10 @@ mod tests {
         assert!(sidebar.running_agents.is_empty());
         assert_eq!(sidebar.completed_agents.len(), 1);
         assert_eq!(sidebar.completed_agents[0].elapsed_secs, Some(45));
-        assert_eq!(sidebar.completed_agents[0].status, AgentSidebarStatus::Completed);
+        assert_eq!(
+            sidebar.completed_agents[0].status,
+            AgentSidebarStatus::Completed
+        );
     }
 
     #[test]
