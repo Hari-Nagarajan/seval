@@ -38,6 +38,36 @@ pub enum ToolStatus {
     Blocked,
 }
 
+/// Status of an agent entry in the sidebar.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AgentSidebarStatus {
+    /// Agent is currently running.
+    Running,
+    /// Agent completed successfully.
+    Completed,
+    /// Agent was cancelled.
+    Cancelled,
+    /// Agent timed out.
+    TimedOut,
+}
+
+/// An agent entry displayed in the sidebar.
+#[derive(Debug, Clone)]
+pub struct AgentSidebarEntry {
+    /// Name of the agent.
+    pub name: String,
+    /// Current turn number.
+    pub turn: u32,
+    /// Maximum turns configured for the agent.
+    pub max_turns: u32,
+    /// When the agent started (for elapsed time calculation).
+    pub started_at: Instant,
+    /// Current status.
+    pub status: AgentSidebarStatus,
+    /// Elapsed seconds at completion (set on completion).
+    pub elapsed_secs: Option<u64>,
+}
+
 /// A tool entry displayed in the sidebar.
 #[derive(Debug, Clone)]
 pub struct ToolEntry {
@@ -74,6 +104,12 @@ pub struct Sidebar {
     model_name: Option<String>,
     /// Number of messages in the session.
     message_count: usize,
+    /// Whether any agent has been spawned this session (controls header visibility).
+    agent_section_visible: bool,
+    /// Currently running agents (all shown).
+    running_agents: Vec<AgentSidebarEntry>,
+    /// Recently completed agents (newest at back, capped at 3).
+    completed_agents: VecDeque<AgentSidebarEntry>,
 }
 
 impl Sidebar {
@@ -191,6 +227,118 @@ impl Sidebar {
     /// Get context usage as (used, max) tokens.
     pub fn context_usage(&self) -> (u64, u64) {
         (self.context_used, self.context_max)
+    }
+
+    /// Record that a new agent has started (makes agent section visible).
+    pub fn agent_started(&mut self, name: String, max_turns: u32) {
+        self.agent_section_visible = true;
+        self.running_agents.push(AgentSidebarEntry {
+            name,
+            turn: 0,
+            max_turns,
+            started_at: Instant::now(),
+            status: AgentSidebarStatus::Running,
+            elapsed_secs: None,
+        });
+    }
+
+    /// Update turn counter for a running agent.
+    pub fn agent_turn_update(&mut self, name: &str, turn: u32) {
+        if let Some(entry) = self.running_agents.iter_mut().find(|e| e.name == name) {
+            entry.turn = turn;
+        }
+    }
+
+    /// Move a running agent to completed history (capped at 3 entries).
+    pub fn agent_completed(&mut self, name: &str, elapsed_secs: u64, status: AgentSidebarStatus) {
+        if let Some(pos) = self.running_agents.iter().position(|e| e.name == name) {
+            let mut entry = self.running_agents.remove(pos);
+            entry.status = status;
+            entry.elapsed_secs = Some(elapsed_secs);
+            self.completed_agents.push_back(entry);
+            while self.completed_agents.len() > 3 {
+                self.completed_agents.pop_front();
+            }
+        }
+    }
+
+    /// Reset agent state (called on /clear).
+    pub fn clear_agents(&mut self) {
+        self.agent_section_visible = false;
+        self.running_agents.clear();
+        self.completed_agents.clear();
+    }
+
+    /// Get a snapshot of running agents.
+    pub fn running_agents(&self) -> &[AgentSidebarEntry] {
+        &self.running_agents
+    }
+
+    /// Get a snapshot of completed agents.
+    pub fn completed_agents(&self) -> &VecDeque<AgentSidebarEntry> {
+        &self.completed_agents
+    }
+
+    /// Build the agent status lines for the sidebar display.
+    fn build_agent_lines(&self) -> Vec<Line<'static>> {
+        if !self.agent_section_visible {
+            return Vec::new();
+        }
+
+        let mut lines = Vec::new();
+
+        // Section header.
+        lines.push(Line::from(Span::styled(
+            "Agents",
+            Style::default()
+                .fg(Color::White)
+                .add_modifier(Modifier::BOLD),
+        )));
+
+        // Running agents: 2 lines each (name with spinner + turn counter).
+        for entry in &self.running_agents {
+            let spinner_ch = TOOL_SPINNER[self.spinner_frame % TOOL_SPINNER.len()];
+            lines.push(Line::from(vec![
+                Span::styled(
+                    format!("  {spinner_ch} "),
+                    Style::default().fg(Color::Yellow),
+                ),
+                Span::styled(
+                    entry.name.clone(),
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD),
+                ),
+            ]));
+            lines.push(Line::from(Span::styled(
+                format!("    turn {}/{}", entry.turn, entry.max_turns),
+                Style::default().fg(Color::DarkGray),
+            )));
+        }
+
+        // Completed agents: 1 line each (newest first).
+        for entry in self.completed_agents.iter().rev() {
+            let elapsed = entry.elapsed_secs.unwrap_or(0);
+            let status_char = match entry.status {
+                AgentSidebarStatus::Completed => "\u{2713}",
+                AgentSidebarStatus::Cancelled => "!",
+                AgentSidebarStatus::TimedOut => "!",
+                AgentSidebarStatus::Running => "?", // shouldn't happen
+            };
+            let color = match entry.status {
+                AgentSidebarStatus::Completed => Color::Green,
+                _ => Color::Yellow,
+            };
+            lines.push(Line::from(Span::styled(
+                format!("  {} {} ({}s)", status_char, entry.name, elapsed),
+                Style::default().fg(color),
+            )));
+        }
+
+        // Empty line separator before tools section.
+        lines.push(Line::from(""));
+
+        lines
     }
 
     /// Push a tool entry to history.
@@ -317,8 +465,14 @@ impl Component for Sidebar {
             Line::from(""),
         ];
 
-        // Tool status section — fills remaining height.
-        lines.extend(self.build_tool_lines(inner_height));
+        // Agent status section (hidden until first agent spawn).
+        let agent_lines = self.build_agent_lines();
+        let agent_line_count = agent_lines.len();
+        lines.extend(agent_lines);
+
+        // Tool status section — fills remaining height (subtract agent lines to prevent overflow).
+        let tool_budget = inner_height.saturating_sub(2 + agent_line_count); // 2 for version+blank
+        lines.extend(self.build_tool_lines(tool_budget));
 
         let block = Block::default()
             .title(Span::styled(
@@ -595,5 +749,67 @@ mod tests {
     #[test]
     fn test_short_path_long() {
         assert_eq!(short_path("/home/user/project/src/main.rs"), "src/main.rs");
+    }
+
+    // -------------------------------------------------------------------------
+    // Agent sidebar tests
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_agent_started_creates_running_entry() {
+        let mut sidebar = Sidebar::new();
+        sidebar.agent_started("test-agent".to_string(), 10);
+        assert_eq!(sidebar.running_agents.len(), 1);
+        assert!(sidebar.agent_section_visible);
+        assert_eq!(sidebar.running_agents[0].name, "test-agent");
+        assert_eq!(sidebar.running_agents[0].max_turns, 10);
+        assert_eq!(sidebar.running_agents[0].turn, 0);
+        assert_eq!(sidebar.running_agents[0].status, AgentSidebarStatus::Running);
+    }
+
+    #[test]
+    fn test_agent_turn_update_increments_counter() {
+        let mut sidebar = Sidebar::new();
+        sidebar.agent_started("test-agent".to_string(), 10);
+        sidebar.agent_turn_update("test-agent", 3);
+        assert_eq!(sidebar.running_agents[0].turn, 3);
+    }
+
+    #[test]
+    fn test_agent_completed_moves_to_history() {
+        let mut sidebar = Sidebar::new();
+        sidebar.agent_started("test-agent".to_string(), 10);
+        sidebar.agent_completed("test-agent", 45, AgentSidebarStatus::Completed);
+        assert!(sidebar.running_agents.is_empty());
+        assert_eq!(sidebar.completed_agents.len(), 1);
+        assert_eq!(sidebar.completed_agents[0].elapsed_secs, Some(45));
+        assert_eq!(sidebar.completed_agents[0].status, AgentSidebarStatus::Completed);
+    }
+
+    #[test]
+    fn test_completed_agents_capped_at_3() {
+        let mut sidebar = Sidebar::new();
+        for i in 0..4 {
+            let name = format!("agent-{i}");
+            sidebar.agent_started(name.clone(), 5);
+            sidebar.agent_completed(&name, 10, AgentSidebarStatus::Completed);
+        }
+        assert_eq!(sidebar.completed_agents.len(), 3);
+    }
+
+    #[test]
+    fn test_agent_section_hidden_by_default() {
+        let sidebar = Sidebar::new();
+        assert!(sidebar.build_agent_lines().is_empty());
+    }
+
+    #[test]
+    fn test_clear_agents_resets_visibility() {
+        let mut sidebar = Sidebar::new();
+        sidebar.agent_started("test-agent".to_string(), 5);
+        sidebar.clear_agents();
+        assert!(!sidebar.agent_section_visible);
+        assert!(sidebar.running_agents.is_empty());
+        assert!(sidebar.completed_agents.is_empty());
     }
 }
