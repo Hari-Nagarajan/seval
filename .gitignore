@@ -3,7 +3,9 @@
 .idea/
 .vscode/
 .seval/
-.claude/
+.claude/*
+!.claude/skills/
+.claude/skills/*-workspace/
 *.log
 *.tmp
 *.bak
