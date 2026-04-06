@@ -400,6 +400,23 @@ impl App {
             Action::Tick => {
                 self.sidebar.tick();
             }
+            Action::AgentStarted { name, max_turns } => {
+                self.sidebar.agent_started(name.clone(), *max_turns);
+            }
+            Action::AgentTurnUpdate { name, turn, .. } => {
+                self.sidebar.agent_turn_update(name, *turn);
+            }
+            Action::AgentCompleted(result) => {
+                use crate::agents::executor::AgentStatus;
+                use crate::tui::sidebar::AgentSidebarStatus;
+                let status = match result.status {
+                    AgentStatus::Completed => AgentSidebarStatus::Completed,
+                    AgentStatus::TimedOut => AgentSidebarStatus::TimedOut,
+                    AgentStatus::Cancelled => AgentSidebarStatus::Cancelled,
+                };
+                self.sidebar
+                    .agent_completed(&result.agent_name, result.elapsed_secs, status);
+            }
             Action::ContextWindowUpdate(size) => {
                 if let Some(ref mut chat) = self.chat {
                     chat.context_state_mut().context_window = *size;
@@ -417,6 +434,13 @@ impl App {
     /// message send, compression, session resume). Called after components have
     /// processed the action so token counts reflect the latest state.
     fn sync_sidebar_after_forward(&mut self, action: &Action) {
+        // Reset agent state when /clear is executed.
+        if let Action::ExecuteCommand(cmd) = action
+            && (cmd.trim() == "/clear" || cmd.trim() == "clear")
+        {
+            self.sidebar.clear_agents();
+        }
+
         if !matches!(
             action,
             Action::TokenUpdate { .. }

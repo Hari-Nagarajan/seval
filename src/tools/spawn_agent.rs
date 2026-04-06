@@ -202,6 +202,12 @@ impl Tool for SpawnAgentTool {
             map.insert(agent_name.clone(), (handle, partial_output));
         }
 
+        // Notify sidebar of new agent (per D-06).
+        let _ = self.tx.send(Action::AgentStarted {
+            name: agent_name.clone(),
+            max_turns,
+        });
+
         // Return immediate confirmation string per D-08.
         Ok(format!(
             "Agent '{agent_name}' spawned successfully. Model: {model} | Max turns: {max_turns} | Timeout: {max_time_minutes}min"
