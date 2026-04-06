@@ -3080,9 +3080,9 @@ dependencies = [
 
 [[package]]
 name = "rig-bedrock"
-version = "0.4.1"
+version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dca4f1619e3e1ca665e72d03ebd76b4bb267d29fe9bc71ce6a5803f2fa3935b8"
+checksum = "a07e6292e95211cfbd9a24bd3d30c695de180308118b93a64cd2ab82ecadbb8e"
 dependencies = [
  "async-stream",
  "aws-config",
@@ -3090,7 +3090,7 @@ dependencies = [
  "aws-smithy-types",
  "base64",
  "nanoid",
- "rig-core",
+ "rig-core 0.34.0",
  "rig-derive",
  "schemars",
  "serde",
@@ -3133,10 +3133,42 @@ dependencies = [
 ]
 
 [[package]]
-name = "rig-derive"
-version = "0.1.11"
+name = "rig-core"
+version = "0.34.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3b6d9818c9cb13d00664b52fd3e47b0554bc2d5c59cfb90340dd9411b09553bc"
+checksum = "be50a1a0fb28b525cb26bd43a1273f587b4a6947fe917bc7c55eb43806bef944"
+dependencies = [
+ "as-any",
+ "async-stream",
+ "base64",
+ "bytes",
+ "eventsource-stream",
+ "fastrand",
+ "futures",
+ "futures-timer",
+ "glob",
+ "http 1.4.0",
+ "mime",
+ "mime_guess",
+ "nanoid",
+ "ordered-float 5.1.0",
+ "pin-project-lite",
+ "reqwest 0.13.2",
+ "schemars",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+ "tracing-futures",
+ "url",
+]
+
+[[package]]
+name = "rig-derive"
+version = "0.1.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d7590f1ffc5cef2af569072500c3ee02836c6cfb9faee9b6f0fc140428a50891"
 dependencies = [
  "convert_case",
  "deluxe",
@@ -3528,7 +3560,7 @@ dependencies = [
  "regex",
  "reqwest 0.12.28",
  "rig-bedrock",
- "rig-core",
+ "rig-core 0.32.0",
  "rusqlite",
  "serde",
  "serde_json",
