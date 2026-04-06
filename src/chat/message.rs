@@ -102,6 +102,7 @@ impl ChatMessage {
                     .join("");
                 (Role::Assistant, text)
             }
+            rig::message::Message::System { content } => (Role::System, content.clone()),
         };
         Self::new(role, content)
     }
