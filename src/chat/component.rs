@@ -137,6 +137,10 @@ pub struct Chat {
     pub(super) agent_handles: crate::tools::spawn_agent::AgentHandleMap,
     /// Pending agent results waiting to be injected into `rig_history` on next turn (D-01).
     pub(super) pending_agent_results: Vec<AgentResult>,
+    /// Live status of running agents (for /agents status command).
+    pub(super) agent_status: std::collections::HashMap<String, super::agents::AgentStatusEntry>,
+    /// Log of completed agents this session (for /agents status command).
+    pub(super) completed_agent_log: Vec<super::agents::CompletedAgentInfo>,
     /// Context window state tracking.
     pub(super) context_state: ContextState,
     /// Session state (DB, session ID, action channel).
@@ -199,6 +203,8 @@ impl Chat {
             agent_registry: Arc::new(AgentRegistry::default()),
             agent_handles: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
             pending_agent_results: Vec::new(),
+            agent_status: std::collections::HashMap::new(),
+            completed_agent_log: Vec::new(),
             context_state: ContextState::new(128_000),
             streaming: StreamingState {
                 buffer: String::new(),
@@ -314,6 +320,8 @@ impl Chat {
                 self.scroll_offset = 0;
                 self.streaming.buffer.clear();
                 self.show_help = false;
+                self.agent_status.clear();
+                self.completed_agent_log.clear();
                 None
             }
             SlashCommand::Sessions(sub) => {
@@ -330,6 +338,10 @@ impl Chat {
             }
             SlashCommand::Export(session_id_opt) => {
                 self.handle_export_command(session_id_opt.as_deref());
+                None
+            }
+            SlashCommand::Agents(sub) => {
+                self.handle_agents_command(sub.as_deref());
                 None
             }
             SlashCommand::Quit => Some(Action::Quit),
@@ -963,6 +975,23 @@ impl Component for Chat {
                 self.add_system_message(text);
                 Ok(None)
             }
+            Action::AgentStarted { name, max_turns } => {
+                self.agent_status.insert(
+                    name.clone(),
+                    super::agents::AgentStatusEntry {
+                        max_turns,
+                        current_turn: 0,
+                        started_at: std::time::Instant::now(),
+                    },
+                );
+                Ok(None)
+            }
+            Action::AgentTurnUpdate { name, turn, .. } => {
+                if let Some(entry) = self.agent_status.get_mut(name.as_str()) {
+                    entry.current_turn = turn;
+                }
+                Ok(None)
+            }
             Action::AgentCompleted(result) => {
                 // D-02: Immediate display in chat
                 let status_line = format!(
@@ -980,6 +1009,20 @@ impl Component for Chat {
                 // Remove the agent's JoinHandle from the tracking map
                 if let Ok(mut handles) = self.agent_handles.lock() {
                     handles.remove(&result.agent_name);
+                }
+
+                // Update status tracking for /agents status
+                self.agent_status.remove(&result.agent_name);
+                self.completed_agent_log.push(super::agents::CompletedAgentInfo {
+                    name: result.agent_name.clone(),
+                    turns_completed: result.turns_completed,
+                    max_turns: result.max_turns,
+                    elapsed_secs: result.elapsed_secs,
+                    status: result.status_label().to_string(),
+                });
+                // Cap completed log at 10
+                if self.completed_agent_log.len() > 10 {
+                    self.completed_agent_log.remove(0);
                 }
 
                 // D-01: Queue for next-turn injection into rig_history
