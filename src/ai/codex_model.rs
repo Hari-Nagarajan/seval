@@ -35,8 +35,8 @@ impl CodexClient {
     }
 }
 
-/// Cache of call_id → (tool name, arguments JSON) for reconstructing
-/// function_call items that rig's multi-turn may omit from history.
+/// Cache of `call_id` → (tool name, arguments JSON) for reconstructing
+/// `function_call` items that rig's multi-turn may omit from history.
 type ToolCallCache =
     std::sync::Arc<std::sync::Mutex<std::collections::HashMap<String, (String, String)>>>;
 
@@ -371,7 +371,7 @@ fn convert_message(
 }
 
 /// Scan input items for `function_call_output` without a preceding `function_call`
-/// and insert reconstructed function_call items from the cache.
+/// and insert reconstructed `function_call` items from the cache.
 fn ensure_function_calls_present(
     mut items: Vec<serde_json::Value>,
     cache: &ToolCallCache,
@@ -443,6 +443,7 @@ type SseStream = Pin<
 >;
 
 /// Parse a byte stream of SSE events into `RawStreamingChoice` items.
+#[allow(clippy::too_many_lines)]
 fn parse_sse_stream<S>(byte_stream: S, tool_call_cache: ToolCallCache) -> SseStream
 where
     S: Stream<Item = Result<::bytes::Bytes, reqwest::Error>> + Send + 'static,
