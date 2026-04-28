@@ -9,6 +9,8 @@ use serde::{Deserialize, Serialize};
 pub enum SlashCommand {
     /// Switch AI model. Argument is the model name, if provided.
     Model(Option<String>),
+    /// Switch AI provider: `/provider [bedrock|openrouter|chatgpt]`.
+    Provider(Option<String>),
     /// Show help text listing available commands.
     Help,
     /// Clear conversation history.
@@ -48,6 +50,7 @@ impl SlashCommand {
 
         Some(match cmd {
             "model" => Self::Model(arg),
+            "provider" => Self::Provider(arg),
             "help" => Self::Help,
             "clear" => Self::Clear,
             "sessions" => Self::Sessions(arg),
@@ -71,6 +74,7 @@ impl SlashCommand {
     pub fn help_text() -> &'static str {
         "\
 Available commands:
+  /provider [name] - Switch provider (bedrock, openrouter, chatgpt)
   /model [name]  - Switch AI model (show current if no name given)
   /sessions      - List saved sessions
   /sessions resume <id> - Resume a saved session
@@ -205,8 +209,25 @@ mod tests {
     }
 
     #[test]
+    fn parse_provider_no_arg() {
+        assert_eq!(
+            SlashCommand::parse("/provider"),
+            Some(SlashCommand::Provider(None))
+        );
+    }
+
+    #[test]
+    fn parse_provider_with_arg() {
+        assert_eq!(
+            SlashCommand::parse("/provider chatgpt"),
+            Some(SlashCommand::Provider(Some("chatgpt".to_string())))
+        );
+    }
+
+    #[test]
     fn help_text_is_not_empty() {
         let text = SlashCommand::help_text();
+        assert!(text.contains("/provider"));
         assert!(text.contains("/model"));
         assert!(text.contains("/help"));
         assert!(text.contains("/clear"));

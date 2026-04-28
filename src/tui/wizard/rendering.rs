@@ -103,6 +103,13 @@ impl Wizard {
         match self.selected_provider {
             ProviderKind::Bedrock => self.draw_bedrock_creds(frame, area),
             ProviderKind::OpenRouter => self.draw_openrouter_key(frame, area),
+            ProviderKind::ChatGpt => {
+                let msg = Paragraph::new(
+                    "ChatGPT uses Codex CLI auth. Run `codex auth login` before starting seval.",
+                )
+                .style(Style::default().fg(Color::Green));
+                frame.render_widget(msg, area);
+            }
         }
     }
 

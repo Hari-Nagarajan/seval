@@ -31,6 +31,7 @@ pub fn classify_tool(name: &str) -> ToolCategory {
             ToolCategory::Read
         }
         "write" | "edit" => ToolCategory::Write,
+        // "process" and "shell" are both Shell-category (require approval in Default mode).
         _ => ToolCategory::Shell,
     }
 }

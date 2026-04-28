@@ -43,6 +43,32 @@ pub fn format_tool_display(tool_name: &str, args_json: &str) -> String {
             let pattern = args.get("pattern").and_then(|v| v.as_str()).unwrap_or("?");
             format!("Glob: {pattern}")
         }
+        "process" => {
+            let action = args.get("action").and_then(|v| v.as_str()).unwrap_or("?");
+            match action {
+                "start" => {
+                    let cmd = args.get("command").and_then(|v| v.as_str()).unwrap_or("?");
+                    format!("Process start: $ {cmd}")
+                }
+                "signal" => {
+                    let pid = args
+                        .get("pid")
+                        .and_then(serde_json::Value::as_u64)
+                        .map_or("?".to_string(), |p| p.to_string());
+                    let sig = args.get("signal").and_then(|v| v.as_str()).unwrap_or("?");
+                    format!("Process signal: {sig} → PID {pid}")
+                }
+                "read_output" => {
+                    let pid = args
+                        .get("pid")
+                        .and_then(serde_json::Value::as_u64)
+                        .map_or("?".to_string(), |p| p.to_string());
+                    format!("Process read_output: PID {pid}")
+                }
+                "list" => "Process list".to_string(),
+                _ => format!("Process {action}"),
+            }
+        }
         _ => {
             let truncated = truncate_str(args_json, 100);
             format!("{tool_name}: {truncated}")

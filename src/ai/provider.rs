@@ -7,6 +7,8 @@ use anyhow::{Context, Result};
 use aws_config::BehaviorVersion;
 use rig::providers::openrouter;
 
+use crate::ai::codex_auth::CodexAuth;
+use crate::ai::codex_model::CodexClient;
 use crate::config::AppConfig;
 use crate::config::ProviderKind;
 
@@ -16,7 +18,10 @@ const DEFAULT_BEDROCK_MODEL: &str = "us.anthropic.claude-sonnet-4-20250514-v1:0"
 /// Default model for `OpenRouter` API.
 const DEFAULT_OPENROUTER_MODEL: &str = "anthropic/claude-sonnet-4-6";
 
-/// Unified AI provider abstracting over Bedrock and `OpenRouter` backends.
+/// Default model for `ChatGPT` via Codex.
+const DEFAULT_CHATGPT_MODEL: &str = "gpt-5.5";
+
+/// Unified AI provider abstracting over Bedrock, `OpenRouter`, and `ChatGPT` backends.
 #[derive(Debug, Clone)]
 pub enum AiProvider {
     /// AWS Bedrock client.
@@ -33,6 +38,13 @@ pub enum AiProvider {
         /// Model identifier (prefixed, e.g. "anthropic/claude-sonnet-4-6").
         model: String,
     },
+    /// `ChatGPT` via Codex CLI auth tokens.
+    ChatGpt {
+        /// The Codex API client.
+        client: CodexClient,
+        /// Model identifier (e.g. "o3", "gpt-4o").
+        model: String,
+    },
 }
 
 impl AiProvider {
@@ -45,31 +57,45 @@ impl AiProvider {
         match config.provider.active {
             ProviderKind::Bedrock => {
                 let bedrock = &config.bedrock;
-                let access_key = bedrock
-                    .access_key_id
-                    .as_ref()
-                    .context("Bedrock access key ID is required. Set it in ~/.seval/config.toml under [bedrock] access_key_id")?
-                    .clone();
-                let secret_key = bedrock
-                    .secret_access_key
-                    .as_ref()
-                    .context("Bedrock secret access key is required. Set it in ~/.seval/config.toml under [bedrock] secret_access_key")?
-                    .clone();
-                let region = bedrock.region.as_deref().unwrap_or("us-east-1").to_string();
+                let region = bedrock
+                    .region
+                    .as_deref()
+                    .or(std::env::var("AWS_REGION").ok().as_deref())
+                    .unwrap_or("us-east-1")
+                    .to_string();
 
-                let sdk_config = aws_config::defaults(BehaviorVersion::latest())
-                    .credentials_provider(aws_sdk_bedrockruntime::config::Credentials::new(
-                        access_key,
-                        secret_key,
-                        None,
-                        None,
-                        "seval-config",
-                    ))
-                    .region(aws_config::Region::new(region))
-                    .load()
-                    .await;
+                let mut sdk_builder = aws_config::defaults(BehaviorVersion::latest())
+                    .region(aws_config::Region::new(region));
 
-                let aws_client = aws_sdk_bedrockruntime::Client::new(&sdk_config);
+                // If explicit keys are in config, use them. Otherwise fall back to
+                // the standard AWS credential chain (env vars, ~/.aws/credentials,
+                // SSO, IMDS, etc.).
+                if let (Some(access_key), Some(secret_key)) =
+                    (&bedrock.access_key_id, &bedrock.secret_access_key)
+                {
+                    sdk_builder = sdk_builder.credentials_provider(
+                        aws_sdk_bedrockruntime::config::Credentials::new(
+                            access_key,
+                            secret_key,
+                            None,
+                            None,
+                            "seval-config",
+                        ),
+                    );
+                }
+
+                let sdk_config = sdk_builder.load().await;
+
+                // Support bearer token auth (used by Claude Code / AWS SSO).
+                let aws_client = if let Ok(token) = std::env::var("AWS_BEARER_TOKEN_BEDROCK") {
+                    let bedrock_config = aws_sdk_bedrockruntime::config::Builder::from(&sdk_config)
+                        .bearer_token(aws_sdk_bedrockruntime::config::Token::new(token, None))
+                        .build();
+                    aws_sdk_bedrockruntime::Client::from_conf(bedrock_config)
+                } else {
+                    aws_sdk_bedrockruntime::Client::new(&sdk_config)
+                };
+
                 let client: rig_bedrock::client::Client = aws_client.into();
 
                 let model = config
@@ -94,6 +120,18 @@ impl AiProvider {
                     .unwrap_or_else(|| DEFAULT_OPENROUTER_MODEL.to_string());
                 Ok(Self::OpenRouter { client, model })
             }
+            ProviderKind::ChatGpt => {
+                let auth = CodexAuth::load().context(
+                    "ChatGPT provider requires Codex CLI auth. Run `codex auth login` first.",
+                )?;
+                let client = CodexClient::new(auth);
+                let model = config
+                    .provider
+                    .model
+                    .clone()
+                    .unwrap_or_else(|| DEFAULT_CHATGPT_MODEL.to_string());
+                Ok(Self::ChatGpt { client, model })
+            }
         }
     }
 
@@ -101,7 +139,9 @@ impl AiProvider {
     #[must_use]
     pub fn model_name(&self) -> &str {
         match self {
-            Self::Bedrock { model, .. } | Self::OpenRouter { model, .. } => model,
+            Self::Bedrock { model, .. }
+            | Self::OpenRouter { model, .. }
+            | Self::ChatGpt { model, .. } => model,
         }
     }
 
@@ -111,13 +151,14 @@ impl AiProvider {
         match self {
             Self::Bedrock { .. } => "bedrock",
             Self::OpenRouter { .. } => "openrouter",
+            Self::ChatGpt { .. } => "chatgpt",
         }
     }
 
     /// Get the context window size for the current model.
     ///
     /// For Bedrock, uses hardcoded lookup. For `OpenRouter`, queries the API
-    /// with a 128k fallback on failure.
+    /// with a 128k fallback on failure. For `ChatGPT`, uses 128k default.
     pub async fn context_window_size(&self) -> u64 {
         match self {
             Self::Bedrock { model, .. } => crate::chat::context::bedrock_context_window(model),
@@ -132,13 +173,16 @@ impl AiProvider {
                     }
                 }
             }
+            Self::ChatGpt { .. } => 128_000,
         }
     }
 
     /// Update the model at runtime (e.g. via `/model` command).
     pub fn set_model(&mut self, new_model: String) {
         match self {
-            Self::Bedrock { model, .. } | Self::OpenRouter { model, .. } => {
+            Self::Bedrock { model, .. }
+            | Self::OpenRouter { model, .. }
+            | Self::ChatGpt { model, .. } => {
                 *model = new_model;
             }
         }
@@ -197,14 +241,14 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn from_config_bedrock_missing_keys_errors() {
+    async fn from_config_bedrock_no_explicit_keys_uses_env_chain() {
         let config = make_config(ProviderKind::Bedrock, None, None);
-        let err = AiProvider::from_config(&config).await.unwrap_err();
-        let msg = err.to_string();
-        assert!(
-            msg.contains("Bedrock access key"),
-            "unexpected error: {msg}"
-        );
+        // Without explicit keys, falls through to the default AWS credential chain.
+        // This succeeds if env vars (AWS_REGION, AWS_BEARER_TOKEN_BEDROCK, etc.)
+        // or ~/.aws/credentials are available.
+        let result = AiProvider::from_config(&config).await;
+        assert!(result.is_ok(), "should succeed via env credential chain");
+        assert_eq!(result.unwrap().provider_name(), "bedrock");
     }
 
     #[tokio::test]

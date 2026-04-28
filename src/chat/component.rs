@@ -32,11 +32,15 @@ use crate::chat::markdown::render_markdown;
 use crate::chat::message::{ChatMessage, NEXT_ID, Role, TokenUsage};
 use crate::chat::verbs::random_thinking_verb;
 use crate::config::AppConfig;
+use crate::config::ProviderKind;
 use crate::config::types::ApprovalMode;
 use crate::session::db::Database;
 use crate::tui::Component;
 
 use super::rendering::{format_compact_tokens, format_elapsed, render_user_message};
+
+/// Shared slot for async provider initialization results.
+type PendingProvider = Arc<std::sync::Mutex<Option<(Arc<AiProvider>, u64)>>>;
 
 /// Streaming/agentic loop state.
 pub(super) struct StreamingState {
@@ -94,6 +98,12 @@ pub(super) struct ModelPickerState {
     pub(super) list_state: ListState,
 }
 
+/// State for the interactive provider picker overlay.
+pub(super) struct ProviderPickerState {
+    pub(super) active: bool,
+    pub(super) list_state: ListState,
+}
+
 /// The main chat component.
 pub struct Chat {
     /// Conversation messages.
@@ -135,6 +145,10 @@ pub struct Chat {
     /// Map of spawned agent handles for cancellation support (Phase 11).
     /// Wired in Plan 03; defaults to an empty map.
     pub(super) agent_handles: crate::tools::spawn_agent::AgentHandleMap,
+    /// Shared registry of background processes for the process management tool.
+    pub(super) process_registry: crate::tools::process::ProcessRegistry,
+    /// Pending provider switch (written by async task, consumed on next message).
+    pub(super) pending_provider: PendingProvider,
     /// Pending agent results waiting to be injected into `rig_history` on next turn (D-01).
     pub(super) pending_agent_results: Vec<AgentResult>,
     /// Live status of running agents (for /agents status command).
@@ -149,6 +163,8 @@ pub struct Chat {
     pub(super) streaming: StreamingState,
     /// Model picker overlay state.
     pub(super) model_picker: ModelPickerState,
+    /// Provider picker overlay state.
+    pub(super) provider_picker: ProviderPickerState,
 }
 
 /// Chat component state machine.
@@ -202,6 +218,8 @@ impl Chat {
             approval_tx: Some(approval_tx),
             agent_registry: Arc::new(AgentRegistry::default()),
             agent_handles: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
+            process_registry: crate::tools::process::new_registry(),
+            pending_provider: Arc::new(std::sync::Mutex::new(None)),
             pending_agent_results: Vec::new(),
             agent_status: std::collections::HashMap::new(),
             completed_agent_log: Vec::new(),
@@ -223,6 +241,10 @@ impl Chat {
                 action_tx: None,
             },
             model_picker: ModelPickerState {
+                active: false,
+                list_state: ListState::default(),
+            },
+            provider_picker: ProviderPickerState {
                 active: false,
                 list_state: ListState::default(),
             },
@@ -305,6 +327,10 @@ impl Chat {
                 }
                 None
             }
+            SlashCommand::Provider(maybe_name) => {
+                self.handle_provider_command(maybe_name);
+                None
+            }
             SlashCommand::Help => {
                 self.show_help = !self.show_help;
                 if self.show_help {
@@ -352,6 +378,71 @@ impl Chat {
                 None
             }
         }
+    }
+
+    /// Handle the `/provider` slash command.
+    pub(super) fn handle_provider_command(&mut self, arg: Option<String>) {
+        let current_name = self
+            .provider
+            .as_ref()
+            .map_or("none".to_string(), |p| p.provider_name().to_string());
+
+        let Some(name) = arg else {
+            self.open_provider_picker(&current_name);
+            return;
+        };
+
+        let kind = match name.to_lowercase().as_str() {
+            "bedrock" => ProviderKind::Bedrock,
+            "openrouter" => ProviderKind::OpenRouter,
+            "chatgpt" | "chat-gpt" | "codex" => ProviderKind::ChatGpt,
+            other => {
+                self.add_system_message(format!(
+                    "Unknown provider: {other}\nAvailable: bedrock, openrouter, chatgpt"
+                ));
+                return;
+            }
+        };
+
+        let pending = Arc::clone(&self.pending_provider);
+        if let Some(tx) = &self.session.action_tx {
+            let tx = tx.clone();
+            tokio::spawn(async move {
+                let mut config = crate::config::load_app_config();
+                config.provider.active = kind;
+                config.provider.model = None;
+                match AiProvider::from_config(&config).await {
+                    Ok(provider) => {
+                        let msg = format!(
+                            "Switched to {} (model: {})",
+                            provider.provider_name(),
+                            provider.model_name(),
+                        );
+                        let context_window = provider.context_window_size().await;
+                        if let Ok(mut slot) = pending.lock() {
+                            *slot = Some((Arc::new(provider), context_window));
+                        }
+                        let _ = tx.send(Action::ShowSystemMessage(msg));
+                        if let Err(e) = persist_provider_choice(kind) {
+                            tracing::warn!("Failed to persist provider choice: {e}");
+                        }
+                    }
+                    Err(e) => {
+                        let _ = tx.send(Action::ShowSystemMessage(format!(
+                            "Failed to switch provider: {e}"
+                        )));
+                    }
+                }
+            });
+            self.add_system_message(format!("Switching to {name}..."));
+        }
+    }
+
+    /// Receive a newly initialized provider from an async task.
+    fn receive_provider(&mut self, provider: Arc<AiProvider>, context_window: u64) {
+        self.provider = Some(provider);
+        self.provider_error = None;
+        self.context_state = crate::chat::context::ContextState::new(context_window);
     }
 
     /// Add a system message to the chat (for inline info/errors).
@@ -458,6 +549,7 @@ impl Chat {
                         parent_session_id: self.session.session_id.clone(),
                         approval_tx: approval_tx_for_spawn,
                         parent_approval_mode: self.approval_mode,
+                        process_registry: Arc::clone(&self.process_registry),
                     },
                 );
                 self.streaming.task = Some(handle);
@@ -586,9 +678,12 @@ impl Component for Chat {
 
     #[allow(clippy::too_many_lines)]
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<Option<Action>> {
-        // Model picker overlay: capture all keys.
+        // Picker overlays: capture all keys.
         if self.model_picker.active {
             return Ok(self.handle_model_picker_key(key));
+        }
+        if self.provider_picker.active {
+            return Ok(self.handle_provider_picker_key(key));
         }
 
         // AwaitingApproval state: only Y/N/A/Esc/Ctrl+C accepted.
@@ -973,6 +1068,15 @@ impl Component for Chat {
             }
             Action::ShowSystemMessage(text) => {
                 self.add_system_message(text);
+                // Check if a provider switch is pending.
+                let pending = self
+                    .pending_provider
+                    .lock()
+                    .ok()
+                    .and_then(|mut slot| slot.take());
+                if let Some((provider, context_window)) = pending {
+                    self.receive_provider(provider, context_window);
+                }
                 Ok(None)
             }
             Action::AgentStarted { name, max_turns } => {
@@ -1002,7 +1106,7 @@ impl Component for Chat {
                     result.max_turns,
                     result.elapsed_secs,
                 );
-                let display_text = format!("{}\n\n{}", status_line, result.display_output,);
+                let display_text = format!("{}\n\n{}", status_line, result.display_output);
                 // Show as system message in chat (visible immediately)
                 self.add_system_message(display_text);
 
@@ -1047,6 +1151,19 @@ impl Component for Chat {
     }
 }
 
+/// Persist a provider choice to the global config file.
+fn persist_provider_choice(kind: ProviderKind) -> anyhow::Result<()> {
+    use crate::config::{GlobalConfig, global_config_path, load_config, save_config};
+
+    let path = global_config_path()?;
+    let mut config: GlobalConfig = load_config(&path)?.unwrap_or_default();
+    config.provider.active = kind;
+    config.provider.model = None;
+    save_config(&config, &path)?;
+    tracing::info!("Persisted provider choice: {kind:?}");
+    Ok(())
+}
+
 #[cfg(test)]
 pub(in crate::chat) mod tests {
     use super::*;
@@ -1060,7 +1177,7 @@ pub(in crate::chat) mod tests {
             aws: AwsConfig::default(),
             tools: ToolsConfig::default(),
             provider: ProviderConfig {
-                active: ProviderKind::Bedrock,
+                active: ProviderKind::OpenRouter,
                 model: None,
             },
             bedrock: BedrockConfig::default(),

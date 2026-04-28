@@ -32,10 +32,10 @@ impl Wizard {
             }
             KeyCode::Enter => {
                 let index = self.provider_state.selected().unwrap_or(0);
-                self.selected_provider = if index == 0 {
-                    ProviderKind::Bedrock
-                } else {
-                    ProviderKind::OpenRouter
+                self.selected_provider = match index {
+                    0 => ProviderKind::Bedrock,
+                    1 => ProviderKind::OpenRouter,
+                    _ => ProviderKind::ChatGpt,
                 };
                 // Reset model selection for the chosen provider.
                 self.model_state.select(Some(0));
@@ -61,6 +61,7 @@ impl Wizard {
         match self.selected_provider {
             ProviderKind::Bedrock => self.handle_bedrock_creds_key(key),
             ProviderKind::OpenRouter => self.handle_openrouter_key_input(key),
+            ProviderKind::ChatGpt => Some(Action::WizardNext),
         }
     }
 

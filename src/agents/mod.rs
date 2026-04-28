@@ -292,6 +292,10 @@ pub fn resolve_model_alias(alias: &str, provider: &AiProvider) -> String {
             "opus" => "anthropic/claude-opus-4-5".to_string(),
             other => other.to_string(),
         },
+        AiProvider::ChatGpt { .. } => match alias {
+            "sonnet" | "haiku" | "opus" => alias.to_string(),
+            other => other.to_string(),
+        },
     }
 }
 

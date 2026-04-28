@@ -60,6 +60,14 @@ impl Chat {
                     let agent = client.agent(model).max_tokens(50).build();
                     agent.prompt(&prompt).await.map_err(|e| e.to_string())
                 }
+                AiProvider::ChatGpt { client, model } => {
+                    let codex_model =
+                        crate::ai::codex_model::CodexCompletionModel::new(client.clone(), model);
+                    let agent = rig::agent::AgentBuilder::new(codex_model)
+                        .max_tokens(50)
+                        .build();
+                    agent.prompt(&prompt).await.map_err(|e| e.to_string())
+                }
             };
 
             if let Ok(title) = result {

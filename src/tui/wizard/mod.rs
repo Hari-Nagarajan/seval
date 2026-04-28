@@ -106,9 +106,10 @@ pub(super) const MODE_DESCRIPTIONS: [(&str, &str); 4] = [
 ];
 
 /// Provider options for the wizard.
-pub(super) const PROVIDER_OPTIONS: [(&str, &str); 2] = [
+pub(super) const PROVIDER_OPTIONS: [(&str, &str); 3] = [
     ("Bedrock", "AWS Bedrock (access key + secret key + region)"),
     ("OpenRouter", "OpenRouter API (single API key)"),
+    ("ChatGPT", "ChatGPT via Codex CLI (run `codex auth login`)"),
 ];
 
 /// Common model choices per provider.
@@ -153,6 +154,8 @@ pub const OPENROUTER_MODELS: [(&str, &str); 12] = [
         "Qwen3 Next 80B (free)",
     ),
 ];
+
+pub const CHATGPT_MODELS: [(&str, &str); 1] = [("gpt-5.5", "GPT-5.5 (default)")];
 
 /// Interactive setup wizard component.
 pub struct Wizard {
@@ -250,6 +253,7 @@ impl Wizard {
                     api_key: Some(self.api_key_input.clone()),
                 },
             ),
+            ProviderKind::ChatGpt => (BedrockConfig::default(), OpenRouterConfig::default()),
         };
 
         // Build and save global config.
@@ -305,6 +309,7 @@ impl Wizard {
         match self.selected_provider {
             ProviderKind::Bedrock => &BEDROCK_MODELS,
             ProviderKind::OpenRouter => &OPENROUTER_MODELS,
+            ProviderKind::ChatGpt => &CHATGPT_MODELS,
         }
     }
 }
@@ -356,6 +361,7 @@ impl Component for Wizard {
                     ProviderKind::OpenRouter => {
                         self.api_key_input.push_str(text.trim());
                     }
+                    ProviderKind::ChatGpt => {}
                 }
                 Ok(None)
             }

@@ -28,6 +28,7 @@ pub(super) fn tool_color(name: &str) -> Color {
         "read" => Color::Cyan,
         "grep" | "glob" | "ls" => Color::Blue,
         "shell" => Color::Yellow,
+        "process" => Color::LightYellow,
         "write" | "edit" => Color::Magenta,
         "web_fetch" | "web_search" => Color::Green,
         "save_memory" => Color::DarkGray,
@@ -284,9 +285,12 @@ impl Chat {
             }
         }
 
-        // --- Model picker overlay ---
+        // --- Picker overlays ---
         if self.model_picker.active {
             self.draw_model_picker(frame, area);
+        }
+        if self.provider_picker.active {
+            self.draw_provider_picker(frame, area);
         }
     }
 }
