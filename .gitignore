@@ -13,4 +13,4 @@
 *.swo
 *.env
 
-/target
+/targetscripts/deploy-kali.sh
