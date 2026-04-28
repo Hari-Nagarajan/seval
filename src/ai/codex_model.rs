@@ -35,12 +35,18 @@ impl CodexClient {
     }
 }
 
+/// Cache of `call_id` → (tool name, arguments JSON) for reconstructing
+/// `function_call` items that rig's multi-turn may omit from history.
+type ToolCallCache =
+    std::sync::Arc<std::sync::Mutex<std::collections::HashMap<String, (String, String)>>>;
+
 /// The completion model for the Codex responses API.
 #[derive(Clone, Debug)]
 pub struct CodexCompletionModel {
     client: CodexClient,
     model: String,
     http: reqwest::Client,
+    tool_call_cache: ToolCallCache,
 }
 
 impl CodexCompletionModel {
@@ -54,6 +60,9 @@ impl CodexCompletionModel {
             client,
             model: normalize_model_id(&model.into()),
             http,
+            tool_call_cache: std::sync::Arc::new(std::sync::Mutex::new(
+                std::collections::HashMap::new(),
+            )),
         }
     }
 }
@@ -175,7 +184,7 @@ impl CompletionModel for CodexCompletionModel {
             .await
             .map_err(|e| CompletionError::ProviderError(e.to_string()))?;
 
-        let body = build_request_body(&self.model, &request);
+        let body = build_request_body(&self.model, &request, &self.tool_call_cache);
 
         let resp = self
             .http
@@ -200,14 +209,18 @@ impl CompletionModel for CodexCompletionModel {
         }
 
         let byte_stream = resp.bytes_stream();
-        let sse_stream = parse_sse_stream(byte_stream);
+        let sse_stream = parse_sse_stream(byte_stream, self.tool_call_cache.clone());
 
         Ok(StreamingCompletionResponse::stream(sse_stream))
     }
 }
 
 /// Build the JSON request body for the Codex responses API.
-fn build_request_body(model: &str, request: &CompletionRequest) -> serde_json::Value {
+fn build_request_body(
+    model: &str,
+    request: &CompletionRequest,
+    tool_call_cache: &ToolCallCache,
+) -> serde_json::Value {
     let mut system_parts: Vec<String> = Vec::new();
     let mut input_items: Vec<serde_json::Value> = Vec::new();
 
@@ -220,6 +233,11 @@ fn build_request_body(model: &str, request: &CompletionRequest) -> serde_json::V
     for msg in request.chat_history.iter() {
         convert_message(msg, &mut input_items, &mut system_parts);
     }
+
+    // Ensure every function_call_output has a preceding function_call.
+    // Rig 0.34's multi-turn can drop the Assistant message containing
+    // function_call items from history. Reconstruct from the cache.
+    let input_items = ensure_function_calls_present(input_items, tool_call_cache);
 
     let instructions = if system_parts.is_empty() {
         "You are Seval, a security research assistant.".to_string()
@@ -293,9 +311,10 @@ fn convert_message(
                             })
                             .collect::<Vec<_>>()
                             .join("\n");
+                        let cid = tr.call_id.as_deref().unwrap_or(&tr.id);
                         items.push(serde_json::json!({
                             "type": "function_call_output",
-                            "call_id": tr.id,
+                            "call_id": cid,
                             "output": text,
                         }));
                         return;
@@ -312,6 +331,7 @@ fn convert_message(
         }
         Message::Assistant { content, .. } => {
             let mut text_parts: Vec<serde_json::Value> = Vec::new();
+            let mut fn_calls: Vec<serde_json::Value> = Vec::new();
             for item in content.iter() {
                 match item {
                     AssistantContent::Text(t) => {
@@ -321,11 +341,16 @@ fn convert_message(
                         }));
                     }
                     AssistantContent::ToolCall(tc) => {
-                        // Emit tool calls as separate function_call items.
-                        items.push(serde_json::json!({
+                        let cid = tc.call_id.as_deref().unwrap_or(&tc.id);
+                        let fc_id = if cid.starts_with("fc_") {
+                            cid.to_string()
+                        } else {
+                            format!("fc_{}", cid.trim_start_matches("call_"))
+                        };
+                        fn_calls.push(serde_json::json!({
                             "type": "function_call",
-                            "id": tc.id,
-                            "call_id": tc.id,
+                            "id": fc_id,
+                            "call_id": cid,
                             "name": tc.function.name,
                             "arguments": tc.function.arguments.to_string(),
                         }));
@@ -333,14 +358,81 @@ fn convert_message(
                     _ => {}
                 }
             }
+            // Responses API: assistant text must precede function_call items.
             if !text_parts.is_empty() {
                 items.push(serde_json::json!({
                     "role": "assistant",
                     "content": text_parts,
                 }));
             }
+            items.extend(fn_calls);
         }
     }
+}
+
+/// Scan input items for `function_call_output` without a preceding `function_call`
+/// and insert reconstructed `function_call` items from the cache.
+fn ensure_function_calls_present(
+    mut items: Vec<serde_json::Value>,
+    cache: &ToolCallCache,
+) -> Vec<serde_json::Value> {
+    // Collect call_ids that have a function_call already present.
+    let existing: std::collections::HashSet<String> = items
+        .iter()
+        .filter(|item| {
+            item.get("type").and_then(serde_json::Value::as_str) == Some("function_call")
+        })
+        .filter_map(|item| {
+            item.get("call_id")
+                .and_then(serde_json::Value::as_str)
+                .map(String::from)
+        })
+        .collect();
+
+    let guard = cache
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+
+    // Find function_call_output items missing a matching function_call.
+    let mut insertions: Vec<(usize, serde_json::Value)> = Vec::new();
+    for (i, item) in items.iter().enumerate() {
+        if item.get("type").and_then(serde_json::Value::as_str) != Some("function_call_output") {
+            continue;
+        }
+        let Some(call_id) = item.get("call_id").and_then(serde_json::Value::as_str) else {
+            continue;
+        };
+        if existing.contains(call_id) {
+            continue;
+        }
+        if let Some((name, arguments)) = guard.get(call_id) {
+            // Codex API requires function_call `id` to start with "fc_".
+            let fc_id = if call_id.starts_with("fc_") {
+                call_id.to_string()
+            } else {
+                format!("fc_{}", call_id.trim_start_matches("call_"))
+            };
+            insertions.push((
+                i,
+                serde_json::json!({
+                    "type": "function_call",
+                    "id": fc_id,
+                    "call_id": call_id,
+                    "name": name,
+                    "arguments": arguments,
+                }),
+            ));
+        }
+    }
+
+    drop(guard);
+
+    // Insert in reverse order to preserve indices.
+    for (i, fc) in insertions.into_iter().rev() {
+        items.insert(i, fc);
+    }
+
+    items
 }
 
 type SseStream = Pin<
@@ -351,7 +443,8 @@ type SseStream = Pin<
 >;
 
 /// Parse a byte stream of SSE events into `RawStreamingChoice` items.
-fn parse_sse_stream<S>(byte_stream: S) -> SseStream
+#[allow(clippy::too_many_lines)]
+fn parse_sse_stream<S>(byte_stream: S, tool_call_cache: ToolCallCache) -> SseStream
 where
     S: Stream<Item = Result<::bytes::Bytes, reqwest::Error>> + Send + 'static,
 {
@@ -362,6 +455,10 @@ where
         let mut buffer = String::new();
         let mut accumulated_text = String::new();
         let mut done_text: Option<String> = None;
+        // Track function call metadata from output_item.added events,
+        // keyed by output_index. The done event often omits `name`.
+        let mut fn_call_meta: std::collections::HashMap<u64, (String, String)> =
+            std::collections::HashMap::new();
 
         while let Some(chunk_result) = byte_stream.next().await {
             let chunk = match chunk_result {
@@ -415,16 +512,38 @@ where
                                 done_text = Some(text.to_string());
                             }
                         }
+                        "response.output_item.added"
+                            if event.get("item").and_then(|i| i.get("type")).and_then(serde_json::Value::as_str) == Some("function_call") =>
+                        {
+                            let idx = event.get("output_index").and_then(serde_json::Value::as_u64).unwrap_or(0);
+                            let item = &event["item"];
+                            let name = item.get("name").and_then(serde_json::Value::as_str).unwrap_or("unknown").to_string();
+                            let call_id = item.get("call_id").and_then(serde_json::Value::as_str).unwrap_or("").to_string();
+                            fn_call_meta.insert(idx, (name, call_id));
+                        }
                         "response.function_call_arguments.done" => {
-                            // Complete tool call.
-                            let name = event.get("name")
-                                .and_then(serde_json::Value::as_str)
-                                .unwrap_or("unknown")
-                                .to_string();
-                            let call_id = event.get("call_id")
-                                .and_then(serde_json::Value::as_str)
-                                .unwrap_or("")
-                                .to_string();
+                            let output_index = event.get("output_index").and_then(serde_json::Value::as_u64).unwrap_or(0);
+
+                            // Prefer metadata from output_item.added; fall back to fields on this event.
+                            let (name, call_id) = fn_call_meta.remove(&output_index).unwrap_or_else(|| {
+                                let name = event.get("name")
+                                    .and_then(serde_json::Value::as_str)
+                                    .unwrap_or("unknown")
+                                    .to_string();
+                                let call_id = event.get("call_id")
+                                    .and_then(serde_json::Value::as_str)
+                                    .unwrap_or("")
+                                    .to_string();
+                                (name, call_id)
+                            });
+
+                            // Codex API rejects empty call_id — generate one if missing.
+                            let call_id = if call_id.is_empty() {
+                                format!("call_{}", uuid::Uuid::new_v4().simple())
+                            } else {
+                                call_id
+                            };
+
                             let arguments_str = event.get("arguments")
                                 .and_then(serde_json::Value::as_str)
                                 .unwrap_or("{}");
@@ -432,6 +551,11 @@ where
                                 .unwrap_or(serde_json::json!({}));
 
                             let internal_call_id = format!("codex-{}", uuid::Uuid::new_v4());
+
+                            // Cache for reconstructing missing function_call items on next turn.
+                            if let Ok(mut guard) = tool_call_cache.lock() {
+                                guard.insert(call_id.clone(), (name.clone(), arguments_str.to_string()));
+                            }
 
                             yield Ok(RawStreamingChoice::ToolCall(RawStreamingToolCall {
                                 id: call_id.clone(),
@@ -576,7 +700,9 @@ mod tests {
             output_schema: None,
             additional_params: None,
         };
-        let body = build_request_body("gpt-5-codex", &request);
+        let cache: ToolCallCache =
+            std::sync::Arc::new(std::sync::Mutex::new(std::collections::HashMap::new()));
+        let body = build_request_body("gpt-5-codex", &request, &cache);
         assert_eq!(body["model"], "gpt-5-codex");
         assert_eq!(body["instructions"], "You are a helper.");
         assert!(body["stream"].as_bool().unwrap());
@@ -603,7 +729,9 @@ mod tests {
             output_schema: None,
             additional_params: None,
         };
-        let body = build_request_body("gpt-5-codex", &request);
+        let cache: ToolCallCache =
+            std::sync::Arc::new(std::sync::Mutex::new(std::collections::HashMap::new()));
+        let body = build_request_body("gpt-5-codex", &request, &cache);
         let tools = body["tools"].as_array().unwrap();
         assert_eq!(tools.len(), 1);
         assert_eq!(tools[0]["name"], "shell");
@@ -630,7 +758,9 @@ mod tests {
             output_schema: None,
             additional_params: None,
         };
-        let body = build_request_body("test-model", &request);
+        let cache: ToolCallCache =
+            std::sync::Arc::new(std::sync::Mutex::new(std::collections::HashMap::new()));
+        let body = build_request_body("test-model", &request, &cache);
         let instructions = body["instructions"].as_str().unwrap();
         assert!(instructions.contains("Preamble"));
         assert!(instructions.contains("Extra system context"));

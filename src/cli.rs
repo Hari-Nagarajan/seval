@@ -31,6 +31,10 @@ pub struct Cli {
     /// Path to configuration file.
     #[arg(long)]
     pub config: Option<PathBuf>,
+
+    /// Run non-interactively: send a prompt, stream output to stdout, then exit.
+    #[arg(short = 'p', long = "pipe")]
+    pub pipe: Option<String>,
 }
 
 /// Available subcommands.
