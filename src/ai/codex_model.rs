@@ -512,15 +512,14 @@ where
                                 done_text = Some(text.to_string());
                             }
                         }
-                        "response.output_item.added" => {
-                            // Captures name and call_id for function_call items.
-                            if event.get("item").and_then(|i| i.get("type")).and_then(serde_json::Value::as_str) == Some("function_call") {
-                                let idx = event.get("output_index").and_then(serde_json::Value::as_u64).unwrap_or(0);
-                                let item = &event["item"];
-                                let name = item.get("name").and_then(serde_json::Value::as_str).unwrap_or("unknown").to_string();
-                                let call_id = item.get("call_id").and_then(serde_json::Value::as_str).unwrap_or("").to_string();
-                                fn_call_meta.insert(idx, (name, call_id));
-                            }
+                        "response.output_item.added"
+                            if event.get("item").and_then(|i| i.get("type")).and_then(serde_json::Value::as_str) == Some("function_call") =>
+                        {
+                            let idx = event.get("output_index").and_then(serde_json::Value::as_u64).unwrap_or(0);
+                            let item = &event["item"];
+                            let name = item.get("name").and_then(serde_json::Value::as_str).unwrap_or("unknown").to_string();
+                            let call_id = item.get("call_id").and_then(serde_json::Value::as_str).unwrap_or("").to_string();
+                            fn_call_meta.insert(idx, (name, call_id));
                         }
                         "response.function_call_arguments.done" => {
                             let output_index = event.get("output_index").and_then(serde_json::Value::as_u64).unwrap_or(0);
