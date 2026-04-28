@@ -285,9 +285,12 @@ impl Chat {
             }
         }
 
-        // --- Model picker overlay ---
+        // --- Picker overlays ---
         if self.model_picker.active {
             self.draw_model_picker(frame, area);
+        }
+        if self.provider_picker.active {
+            self.draw_provider_picker(frame, area);
         }
     }
 }

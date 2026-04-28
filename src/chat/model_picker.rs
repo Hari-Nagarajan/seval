@@ -160,6 +160,139 @@ impl Chat {
             frame.render_widget(hint, hint_area);
         }
     }
+
+    // --- Provider picker ---
+
+    /// Provider options for the picker overlay.
+    const PROVIDER_LIST: [(&'static str, &'static str, crate::config::ProviderKind); 3] = [
+        (
+            "bedrock",
+            "AWS Bedrock (env creds or config keys)",
+            crate::config::ProviderKind::Bedrock,
+        ),
+        (
+            "openrouter",
+            "OpenRouter API (single API key)",
+            crate::config::ProviderKind::OpenRouter,
+        ),
+        (
+            "chatgpt",
+            "ChatGPT via Codex CLI auth",
+            crate::config::ProviderKind::ChatGpt,
+        ),
+    ];
+
+    /// Open the provider picker overlay.
+    pub(super) fn open_provider_picker(&mut self, current: &str) {
+        let index = Self::PROVIDER_LIST
+            .iter()
+            .position(|(name, _, _)| *name == current)
+            .unwrap_or(0);
+        self.provider_picker.list_state = ratatui::widgets::ListState::default();
+        self.provider_picker.list_state.select(Some(index));
+        self.provider_picker.active = true;
+    }
+
+    /// Handle a key event while the provider picker is active.
+    pub(super) fn handle_provider_picker_key(&mut self, key: KeyEvent) -> Option<Action> {
+        let count = Self::PROVIDER_LIST.len();
+        match key.code {
+            KeyCode::Up | KeyCode::Char('k') => {
+                let i = self.provider_picker.list_state.selected().unwrap_or(0);
+                let new = if i == 0 { count - 1 } else { i - 1 };
+                self.provider_picker.list_state.select(Some(new));
+                None
+            }
+            KeyCode::Down | KeyCode::Char('j') => {
+                let i = self.provider_picker.list_state.selected().unwrap_or(0);
+                let new = (i + 1) % count;
+                self.provider_picker.list_state.select(Some(new));
+                None
+            }
+            KeyCode::Enter => {
+                let index = self.provider_picker.list_state.selected().unwrap_or(0);
+                let (name, _, _) = &Self::PROVIDER_LIST[index];
+                let name = (*name).to_string();
+                self.provider_picker.active = false;
+                self.handle_provider_command(Some(name));
+                None
+            }
+            KeyCode::Esc | KeyCode::Char('q') => {
+                self.provider_picker.active = false;
+                None
+            }
+            _ => None,
+        }
+    }
+
+    /// Draw the provider picker overlay.
+    pub(super) fn draw_provider_picker(&self, frame: &mut Frame, area: Rect) {
+        let current = self.provider.as_ref().map_or("none", |p| p.provider_name());
+
+        let items: Vec<ListItem> = Self::PROVIDER_LIST
+            .iter()
+            .map(|(name, desc, _)| {
+                let marker = if *name == current { " (active)" } else { "" };
+                ListItem::new(vec![
+                    Line::from(Span::styled(
+                        format!("  {name}{marker}"),
+                        Style::default().add_modifier(Modifier::BOLD),
+                    )),
+                    Line::from(Span::styled(
+                        format!("    {desc}"),
+                        Style::default().fg(Color::DarkGray),
+                    )),
+                ])
+            })
+            .collect();
+
+        let list_height = u16::try_from(Self::PROVIDER_LIST.len() * 2).unwrap_or(10) + 5;
+        let list_width = 52_u16;
+
+        let popup_area = centered_popup(area, list_width, list_height);
+        frame.render_widget(Clear, popup_area);
+
+        let list = List::new(items)
+            .block(
+                Block::default()
+                    .title(" Select Provider ")
+                    .title_alignment(Alignment::Center)
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(Color::Cyan)),
+            )
+            .highlight_style(
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            )
+            .highlight_symbol("> ");
+
+        frame.render_stateful_widget(
+            list,
+            popup_area,
+            &mut self.provider_picker.list_state.clone(),
+        );
+
+        let hint_area = Rect {
+            x: popup_area.x,
+            y: popup_area.y + popup_area.height,
+            width: popup_area.width,
+            height: 1,
+        };
+        if hint_area.y < area.y + area.height {
+            let hint = Paragraph::new(Line::from(vec![
+                Span::styled("\u{2191}\u{2193}", Style::default().fg(Color::Yellow)),
+                Span::raw(": navigate  "),
+                Span::styled("Enter", Style::default().fg(Color::Yellow)),
+                Span::raw(": select  "),
+                Span::styled("Esc", Style::default().fg(Color::Yellow)),
+                Span::raw(": cancel"),
+            ]))
+            .alignment(Alignment::Center);
+            frame.render_widget(Clear, hint_area);
+            frame.render_widget(hint, hint_area);
+        }
+    }
 }
 
 /// Persist a model choice to the global config file.

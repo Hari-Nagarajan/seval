@@ -98,6 +98,12 @@ pub(super) struct ModelPickerState {
     pub(super) list_state: ListState,
 }
 
+/// State for the interactive provider picker overlay.
+pub(super) struct ProviderPickerState {
+    pub(super) active: bool,
+    pub(super) list_state: ListState,
+}
+
 /// The main chat component.
 pub struct Chat {
     /// Conversation messages.
@@ -157,6 +163,8 @@ pub struct Chat {
     pub(super) streaming: StreamingState,
     /// Model picker overlay state.
     pub(super) model_picker: ModelPickerState,
+    /// Provider picker overlay state.
+    pub(super) provider_picker: ProviderPickerState,
 }
 
 /// Chat component state machine.
@@ -233,6 +241,10 @@ impl Chat {
                 action_tx: None,
             },
             model_picker: ModelPickerState {
+                active: false,
+                list_state: ListState::default(),
+            },
+            provider_picker: ProviderPickerState {
                 active: false,
                 list_state: ListState::default(),
             },
@@ -369,15 +381,14 @@ impl Chat {
     }
 
     /// Handle the `/provider` slash command.
-    fn handle_provider_command(&mut self, arg: Option<String>) {
-        let current_name = self.provider.as_ref().map_or("none", |p| p.provider_name());
+    pub(super) fn handle_provider_command(&mut self, arg: Option<String>) {
+        let current_name = self
+            .provider
+            .as_ref()
+            .map_or("none".to_string(), |p| p.provider_name().to_string());
 
         let Some(name) = arg else {
-            self.add_system_message(format!(
-                "Current provider: {current_name}\n\
-                 Available: bedrock, openrouter, chatgpt\n\
-                 Usage: /provider <name>"
-            ));
+            self.open_provider_picker(&current_name);
             return;
         };
 
@@ -667,9 +678,12 @@ impl Component for Chat {
 
     #[allow(clippy::too_many_lines)]
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<Option<Action>> {
-        // Model picker overlay: capture all keys.
+        // Picker overlays: capture all keys.
         if self.model_picker.active {
             return Ok(self.handle_model_picker_key(key));
+        }
+        if self.provider_picker.active {
+            return Ok(self.handle_provider_picker_key(key));
         }
 
         // AwaitingApproval state: only Y/N/A/Esc/Ctrl+C accepted.
