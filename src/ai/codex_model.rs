@@ -47,7 +47,7 @@ impl CodexCompletionModel {
     pub fn new(client: CodexClient, model: impl Into<String>) -> Self {
         let http = reqwest::Client::builder()
             .connect_timeout(std::time::Duration::from_secs(10))
-            .read_timeout(std::time::Duration::from_secs(300))
+            .read_timeout(std::time::Duration::from_mins(5))
             .build()
             .expect("failed to build reqwest client");
         Self {

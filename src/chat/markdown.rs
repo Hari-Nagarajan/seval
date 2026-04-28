@@ -16,7 +16,7 @@ use super::syntax::highlight_code;
 /// (ordered and unordered), links, and fenced code blocks with syntax
 /// highlighting.
 #[must_use]
-#[allow(clippy::too_many_lines)]
+#[allow(clippy::too_many_lines, clippy::collapsible_match)]
 pub fn render_markdown(input: &str) -> Vec<Line<'static>> {
     if input.is_empty() {
         return Vec::new();

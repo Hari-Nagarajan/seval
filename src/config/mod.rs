@@ -132,7 +132,7 @@ impl AppConfig {
 
     /// Check if a global configuration file exists.
     pub fn has_global_config() -> bool {
-        global_config_path().map(|p| p.exists()).unwrap_or(false)
+        global_config_path().is_ok_and(|p| p.exists())
     }
 }
 
