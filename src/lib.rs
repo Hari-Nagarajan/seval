@@ -9,6 +9,7 @@ pub mod colors;
 pub mod config;
 pub mod errors;
 pub mod logging;
+pub mod pipe;
 pub mod session;
 pub mod tools;
 pub mod tui;

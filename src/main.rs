@@ -29,15 +29,24 @@ async fn main() -> anyhow::Result<()> {
             app.run().await?;
         }
         None => {
-            if !AppConfig::has_global_config() {
-                // First run -- launch wizard.
-                let mut app = seval::app::App::new_wizard_mode()?;
+            if let Some(prompt) = cli.pipe {
+                if !AppConfig::has_global_config() {
+                    eprintln!("No config found. Run `seval init` first.");
+                    std::process::exit(1);
+                }
+                let config = AppConfig::load()?;
+                seval::pipe::run_pipe_mode(&config, prompt).await?;
+            } else {
+                if !AppConfig::has_global_config() {
+                    // First run -- launch wizard.
+                    let mut app = seval::app::App::new_wizard_mode()?;
+                    app.run().await?;
+                }
+                // Now proceed to normal app (config should exist).
+                let config = AppConfig::load()?;
+                let mut app = seval::app::App::new(&config).await?;
                 app.run().await?;
             }
-            // Now proceed to normal app (config should exist).
-            let config = AppConfig::load()?;
-            let mut app = seval::app::App::new(&config).await?;
-            app.run().await?;
         }
     }
 
