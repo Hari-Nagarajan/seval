@@ -61,6 +61,7 @@ impl Wizard {
         match self.selected_provider {
             ProviderKind::Bedrock => self.handle_bedrock_creds_key(key),
             ProviderKind::OpenRouter => self.handle_openrouter_key_input(key),
+            ProviderKind::ChatGpt => Some(Action::WizardNext),
         }
     }
 

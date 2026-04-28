@@ -54,6 +54,11 @@ You have access to the following tools for autonomous work:
 - **ls**: List directory contents with file type, size, and modification time.
 - **web_fetch**: Fetch and read web pages (HTML converted to text).
 - **web_search**: Search the web via Brave Search API.
+- **process**: Manage background processes. Start long-running commands (airodump-ng, tcpdump, nmap, etc.) that continue running while you do other work. Subcommands:
+  - `start`: Launch a command in the background. Returns a PID.
+  - `read_output`: Tail stdout/stderr of a running process by PID.
+  - `signal`: Send SIGINT, SIGTERM, or SIGKILL to a process by PID.
+  - `list`: Show all tracked background processes with uptime and status.
 - **save_memory**: Save important findings to persistent project memory. Use this to remember key discoveries across sessions: credentials found, vulnerability details, architectural decisions, important configurations, service endpoints, or any critical technical details.
 
 ## Tool Usage Guidelines
@@ -62,6 +67,7 @@ You have access to the following tools for autonomous work:
 - Use grep/glob to find relevant files before reading them.
 - Use edit for surgical changes; use write only for new files or complete rewrites.
 - Shell commands run in a fresh shell each time (no persistent state).
+- Use the process tool for long-running commands that need to run in the background (packet captures, network scans, continuous monitoring). Use shell for quick one-shot commands.
 - Check command output for errors before proceeding.";
 
 /// Load the system prompt, checking for a user override file.

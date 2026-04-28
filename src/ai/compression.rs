@@ -143,6 +143,14 @@ pub async fn compress_conversation(
             let agent = client.agent(model).max_tokens(max_tokens).build();
             agent.prompt(&prompt).await?
         }
+        AiProvider::ChatGpt { client, model } => {
+            let codex_model =
+                crate::ai::codex_model::CodexCompletionModel::new(client.clone(), model);
+            let agent = rig::agent::AgentBuilder::new(codex_model)
+                .max_tokens(max_tokens)
+                .build();
+            agent.prompt(&prompt).await?
+        }
     };
 
     let messages_removed = to_compress.len();

@@ -49,6 +49,13 @@ pub fn save_config<T: serde::Serialize>(config: &T, path: &Path) -> anyhow::Resu
     Ok(())
 }
 
+/// Load the merged application config from default paths.
+///
+/// Returns a default-ish config on any error (for resilience in runtime code paths).
+pub fn load_app_config() -> AppConfig {
+    AppConfig::load().unwrap_or_else(|_| AppConfig::merge(None, None))
+}
+
 /// Load a configuration from a TOML file. Returns None if the file doesn't exist.
 pub fn load_config<T: serde::de::DeserializeOwned>(path: &Path) -> anyhow::Result<Option<T>> {
     if !path.exists() {

@@ -10,11 +10,13 @@ use rig::streaming::StreamingChat;
 use serde::{Deserialize, Serialize};
 
 use crate::action::Action;
+use crate::ai::codex_model::CodexCompletionModel;
 use crate::ai::provider::AiProvider;
 use crate::approval::ApprovalHook;
+use crate::tools::process::new_registry;
 use crate::tools::{
-    EditTool, GlobTool, GrepTool, LsTool, ReadTool, ShellTool, WebFetchTool, WebSearchTool,
-    WriteTool,
+    EditTool, GlobTool, GrepTool, LsTool, ProcessTool, ReadTool, ShellTool, WebFetchTool,
+    WebSearchTool, WriteTool,
 };
 
 /// Status of a completed agent execution.
@@ -138,6 +140,7 @@ pub fn spawn_agent_task(
 }
 
 /// Inner async implementation of agent execution.
+#[allow(clippy::too_many_lines)]
 async fn run_agent_task(
     provider: AiProvider,
     params: AgentExecParams,
@@ -234,6 +237,26 @@ async fn run_agent_task(
         }
         AiProvider::OpenRouter { client, .. } => {
             run_openrouter_agent(
+                client,
+                &params.model,
+                &params.system_prompt,
+                &params.effective_tools,
+                params.working_dir.clone(),
+                params.brave_api_key.clone(),
+                hook,
+                max_turns as usize,
+                history,
+                prompt_text,
+                timeout_duration,
+                Arc::clone(&last_output),
+                Arc::clone(&turn_counter),
+                tx.clone(),
+                agent_name.clone(),
+            )
+            .await
+        }
+        AiProvider::ChatGpt { client, .. } => {
+            run_chatgpt_agent(
                 client,
                 &params.model,
                 &params.system_prompt,
@@ -420,10 +443,11 @@ fn build_bedrock_agent(
         .tool(WriteTool)
         .tool(EditTool)
         .tool(GrepTool::new(working_dir.clone()))
-        .tool(GlobTool::new(working_dir))
+        .tool(GlobTool::new(working_dir.clone()))
         .tool(LsTool)
         .tool(WebFetchTool::new())
         .tool(WebSearchTool::new(brave_api_key))
+        .tool(ProcessTool::new(working_dir, new_registry()))
         .build()
 }
 
@@ -445,10 +469,91 @@ fn build_openrouter_agent(
         .tool(WriteTool)
         .tool(EditTool)
         .tool(GrepTool::new(working_dir.clone()))
-        .tool(GlobTool::new(working_dir))
+        .tool(GlobTool::new(working_dir.clone()))
         .tool(LsTool)
         .tool(WebFetchTool::new())
         .tool(WebSearchTool::new(brave_api_key))
+        .tool(ProcessTool::new(working_dir, new_registry()))
+        .build()
+}
+
+/// Run a `ChatGPT` (Codex) agent with timeout.
+#[allow(clippy::too_many_arguments)]
+async fn run_chatgpt_agent(
+    client: &crate::ai::codex_model::CodexClient,
+    model: &str,
+    system_prompt: &str,
+    effective_tools: &[String],
+    working_dir: PathBuf,
+    brave_api_key: Option<String>,
+    hook: ApprovalHook,
+    max_turns: usize,
+    history: Vec<Message>,
+    prompt: String,
+    timeout_duration: Duration,
+    last_output: Arc<Mutex<String>>,
+    turn_counter: Arc<AtomicUsize>,
+    tx: tokio::sync::mpsc::UnboundedSender<Action>,
+    agent_name: String,
+) -> AgentOutcome {
+    let agent = build_chatgpt_agent(
+        client,
+        model,
+        system_prompt,
+        effective_tools,
+        working_dir,
+        brave_api_key,
+    );
+
+    let result = tokio::time::timeout(
+        timeout_duration,
+        run_agent_stream(
+            agent,
+            history,
+            prompt,
+            hook,
+            max_turns,
+            Arc::clone(&last_output),
+            tx,
+            agent_name,
+        ),
+    )
+    .await;
+
+    match result {
+        Ok(outcome) => outcome,
+        Err(_elapsed) => {
+            let partial = last_output.lock().map(|g| g.clone()).unwrap_or_default();
+            let timeout_turns =
+                u32::try_from(turn_counter.load(Ordering::Relaxed)).unwrap_or(u32::MAX);
+            (AgentStatus::TimedOut, partial, timeout_turns)
+        }
+    }
+}
+
+/// Build a `ChatGPT` (Codex) agent with ALL tools registered.
+fn build_chatgpt_agent(
+    client: &crate::ai::codex_model::CodexClient,
+    model: &str,
+    system_prompt: &str,
+    _effective_tools: &[String],
+    working_dir: PathBuf,
+    brave_api_key: Option<String>,
+) -> rig::agent::Agent<CodexCompletionModel> {
+    let codex_model = CodexCompletionModel::new(client.clone(), model);
+    rig::agent::AgentBuilder::new(codex_model)
+        .preamble(system_prompt)
+        .max_tokens(4096)
+        .tool(ShellTool::new(working_dir.clone()))
+        .tool(ReadTool)
+        .tool(WriteTool)
+        .tool(EditTool)
+        .tool(GrepTool::new(working_dir.clone()))
+        .tool(GlobTool::new(working_dir.clone()))
+        .tool(LsTool)
+        .tool(WebFetchTool::new())
+        .tool(WebSearchTool::new(brave_api_key))
+        .tool(ProcessTool::new(working_dir, new_registry()))
         .build()
 }
 
@@ -540,6 +645,7 @@ pub const ALL_TOOL_NAMES: &[&str] = &[
     "ls",
     "web_fetch",
     "web_search",
+    "process",
 ];
 
 #[cfg(test)]

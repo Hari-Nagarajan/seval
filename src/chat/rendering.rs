@@ -28,6 +28,7 @@ pub(super) fn tool_color(name: &str) -> Color {
         "read" => Color::Cyan,
         "grep" | "glob" | "ls" => Color::Blue,
         "shell" => Color::Yellow,
+        "process" => Color::LightYellow,
         "write" | "edit" => Color::Magenta,
         "web_fetch" | "web_search" => Color::Green,
         "save_memory" => Color::DarkGray,

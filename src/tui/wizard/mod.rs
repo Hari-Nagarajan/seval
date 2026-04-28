@@ -154,6 +154,8 @@ pub const OPENROUTER_MODELS: [(&str, &str); 12] = [
     ),
 ];
 
+pub const CHATGPT_MODELS: [(&str, &str); 1] = [("gpt-5.5", "GPT-5.5 (default)")];
+
 /// Interactive setup wizard component.
 pub struct Wizard {
     pub(super) step: WizardStep,
@@ -250,6 +252,7 @@ impl Wizard {
                     api_key: Some(self.api_key_input.clone()),
                 },
             ),
+            ProviderKind::ChatGpt => (BedrockConfig::default(), OpenRouterConfig::default()),
         };
 
         // Build and save global config.
@@ -305,6 +308,7 @@ impl Wizard {
         match self.selected_provider {
             ProviderKind::Bedrock => &BEDROCK_MODELS,
             ProviderKind::OpenRouter => &OPENROUTER_MODELS,
+            ProviderKind::ChatGpt => &CHATGPT_MODELS,
         }
     }
 }
@@ -356,6 +360,7 @@ impl Component for Wizard {
                     ProviderKind::OpenRouter => {
                         self.api_key_input.push_str(text.trim());
                     }
+                    ProviderKind::ChatGpt => {}
                 }
                 Ok(None)
             }

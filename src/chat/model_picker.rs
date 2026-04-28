@@ -52,6 +52,7 @@ impl Chat {
             .as_ref()
             .map_or(&[], |p| match p.provider_name() {
                 "bedrock" => &crate::tui::wizard::BEDROCK_MODELS,
+                "chatgpt" => &crate::tui::wizard::CHATGPT_MODELS,
                 _ => &crate::tui::wizard::OPENROUTER_MODELS,
             })
     }

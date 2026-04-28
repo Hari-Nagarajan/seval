@@ -16,15 +16,17 @@ use tokio::sync::mpsc::UnboundedSender;
 
 use crate::action::Action;
 use crate::agents::AgentRegistry;
+use crate::ai::codex_model::CodexCompletionModel;
 use crate::ai::provider::AiProvider;
 use crate::approval::{ApprovalHook, ApprovalRequest};
 use crate::config::ApprovalMode;
 use crate::session::db::Database;
 use crate::session::memory_tool::SaveMemoryTool;
+use crate::tools::process::ProcessRegistry;
 use crate::tools::spawn_agent::AgentHandleMap;
 use crate::tools::{
-    EditTool, GlobTool, GrepTool, LsTool, ReadTool, ShellTool, SpawnAgentTool, WebFetchTool,
-    WebSearchTool, WriteTool,
+    EditTool, GlobTool, GrepTool, LsTool, ProcessTool, ReadTool, ShellTool, SpawnAgentTool,
+    WebFetchTool, WebSearchTool, WriteTool,
 };
 
 /// Parameters for spawning a streaming chat task.
@@ -59,6 +61,8 @@ pub struct StreamChatParams {
     pub approval_tx: UnboundedSender<ApprovalRequest>,
     /// Parent chat's approval mode (inherited by agents that don't specify their own).
     pub parent_approval_mode: ApprovalMode,
+    /// Shared process registry for background process management.
+    pub process_registry: ProcessRegistry,
 }
 
 /// Spawn a streaming chat task that bridges Rig's stream to the action channel.
@@ -92,6 +96,7 @@ pub fn spawn_streaming_chat(
         parent_session_id,
         approval_tx,
         parent_approval_mode,
+        process_registry,
     } = params;
 
     // Build the SaveMemoryTool. If no database handle is provided, create an
@@ -129,12 +134,13 @@ pub fn spawn_streaming_chat(
                 .tool(WriteTool)
                 .tool(EditTool)
                 .tool(GrepTool::new(working_dir.clone()))
-                .tool(GlobTool::new(working_dir))
+                .tool(GlobTool::new(working_dir.clone()))
                 .tool(LsTool)
                 .tool(WebFetchTool::new())
                 .tool(WebSearchTool::new(brave_api_key))
                 .tool(save_memory)
                 .tool(spawn_agent_tool)
+                .tool(ProcessTool::new(working_dir, process_registry))
                 .build();
             spawn_stream_task(agent, history, prompt, tx, max_turns, approval_hook)
         }
@@ -148,12 +154,33 @@ pub fn spawn_streaming_chat(
                 .tool(WriteTool)
                 .tool(EditTool)
                 .tool(GrepTool::new(working_dir.clone()))
-                .tool(GlobTool::new(working_dir))
+                .tool(GlobTool::new(working_dir.clone()))
                 .tool(LsTool)
                 .tool(WebFetchTool::new())
                 .tool(WebSearchTool::new(brave_api_key))
                 .tool(save_memory)
                 .tool(spawn_agent_tool)
+                .tool(ProcessTool::new(working_dir, process_registry))
+                .build();
+            spawn_stream_task(agent, history, prompt, tx, max_turns, approval_hook)
+        }
+        AiProvider::ChatGpt { client, model } => {
+            let codex_model = CodexCompletionModel::new(client.clone(), model);
+            let agent = rig::agent::AgentBuilder::new(codex_model)
+                .preamble(&system_prompt)
+                .max_tokens(4096)
+                .tool(ShellTool::new(working_dir.clone()))
+                .tool(ReadTool)
+                .tool(WriteTool)
+                .tool(EditTool)
+                .tool(GrepTool::new(working_dir.clone()))
+                .tool(GlobTool::new(working_dir.clone()))
+                .tool(LsTool)
+                .tool(WebFetchTool::new())
+                .tool(WebSearchTool::new(brave_api_key))
+                .tool(save_memory)
+                .tool(spawn_agent_tool)
+                .tool(ProcessTool::new(working_dir, process_registry))
                 .build();
             spawn_stream_task(agent, history, prompt, tx, max_turns, approval_hook)
         }

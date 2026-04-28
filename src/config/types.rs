@@ -63,6 +63,8 @@ pub enum ProviderKind {
     Bedrock,
     /// `OpenRouter` multi-model API.
     OpenRouter,
+    /// `ChatGPT` via Codex CLI auth tokens (`~/.codex/auth.json`).
+    ChatGpt,
 }
 
 /// Provider configuration.
