@@ -106,9 +106,10 @@ pub(super) const MODE_DESCRIPTIONS: [(&str, &str); 4] = [
 ];
 
 /// Provider options for the wizard.
-pub(super) const PROVIDER_OPTIONS: [(&str, &str); 2] = [
+pub(super) const PROVIDER_OPTIONS: [(&str, &str); 3] = [
     ("Bedrock", "AWS Bedrock (access key + secret key + region)"),
     ("OpenRouter", "OpenRouter API (single API key)"),
+    ("ChatGPT", "ChatGPT via Codex CLI (run `codex auth login`)"),
 ];
 
 /// Common model choices per provider.
