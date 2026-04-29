@@ -311,10 +311,20 @@ fn convert_message(
                             })
                             .collect::<Vec<_>>()
                             .join("\n");
-                        let cid = tr.call_id.as_deref().unwrap_or(&tr.id);
+                        let call_id =
+                            tr.call_id
+                                .clone()
+                                .filter(|s| !s.is_empty())
+                                .unwrap_or_else(|| {
+                                    if tr.id.is_empty() {
+                                        format!("call_{}", uuid::Uuid::new_v4().simple())
+                                    } else {
+                                        tr.id.clone()
+                                    }
+                                });
                         items.push(serde_json::json!({
                             "type": "function_call_output",
-                            "call_id": cid,
+                            "call_id": call_id,
                             "output": text,
                         }));
                         return;
@@ -341,16 +351,26 @@ fn convert_message(
                         }));
                     }
                     AssistantContent::ToolCall(tc) => {
-                        let cid = tc.call_id.as_deref().unwrap_or(&tc.id);
-                        let fc_id = if cid.starts_with("fc_") {
-                            cid.to_string()
+                        let call_id =
+                            tc.call_id
+                                .clone()
+                                .filter(|s| !s.is_empty())
+                                .unwrap_or_else(|| {
+                                    if tc.id.is_empty() {
+                                        format!("call_{}", uuid::Uuid::new_v4().simple())
+                                    } else {
+                                        tc.id.clone()
+                                    }
+                                });
+                        let fc_id = if call_id.starts_with("fc_") {
+                            call_id.clone()
                         } else {
-                            format!("fc_{}", cid.trim_start_matches("call_"))
+                            format!("fc_{}", call_id.trim_start_matches("call_"))
                         };
                         fn_calls.push(serde_json::json!({
                             "type": "function_call",
                             "id": fc_id,
-                            "call_id": cid,
+                            "call_id": call_id,
                             "name": tc.function.name,
                             "arguments": tc.function.arguments.to_string(),
                         }));
@@ -460,6 +480,7 @@ where
         let mut fn_call_meta: std::collections::HashMap<u64, (String, String)> =
             std::collections::HashMap::new();
 
+
         while let Some(chunk_result) = byte_stream.next().await {
             let chunk = match chunk_result {
                 Ok(c) => c,
@@ -522,26 +543,49 @@ where
                             fn_call_meta.insert(idx, (name, call_id));
                         }
                         "response.function_call_arguments.done" => {
-                            let output_index = event.get("output_index").and_then(serde_json::Value::as_u64).unwrap_or(0);
+                            let output_index = event
+                                .get("output_index")
+                                .and_then(serde_json::Value::as_u64)
+                                .unwrap_or(0);
 
                             // Prefer metadata from output_item.added; fall back to fields on this event.
-                            let (name, call_id) = fn_call_meta.remove(&output_index).unwrap_or_else(|| {
-                                let name = event.get("name")
-                                    .and_then(serde_json::Value::as_str)
-                                    .unwrap_or("unknown")
-                                    .to_string();
-                                let call_id = event.get("call_id")
-                                    .and_then(serde_json::Value::as_str)
-                                    .unwrap_or("")
-                                    .to_string();
-                                (name, call_id)
-                            });
+                            let (tracked_name, tracked_call_id) =
+                                fn_call_meta.remove(&output_index).unwrap_or_default();
 
-                            // Codex API rejects empty call_id — generate one if missing.
-                            let call_id = if call_id.is_empty() {
-                                format!("call_{}", uuid::Uuid::new_v4().simple())
+                            let name = event
+                                .get("name")
+                                .and_then(serde_json::Value::as_str)
+                                .filter(|s| !s.is_empty())
+                                .map_or_else(
+                                    || {
+                                        if tracked_name.is_empty() {
+                                            "unknown".to_string()
+                                        } else {
+                                            tracked_name
+                                        }
+                                    },
+                                    String::from,
+                                );
+
+                            let call_id = event
+                                .get("call_id")
+                                .and_then(serde_json::Value::as_str)
+                                .filter(|s| !s.is_empty())
+                                .map_or_else(
+                                    || {
+                                        if tracked_call_id.is_empty() {
+                                            format!("call_{}", uuid::Uuid::new_v4().simple())
+                                        } else {
+                                            tracked_call_id
+                                        }
+                                    },
+                                    String::from,
+                                );
+
+                            let item_id = if call_id.starts_with("fc_") {
+                                call_id.clone()
                             } else {
-                                call_id
+                                format!("fc_{}", call_id.trim_start_matches("call_"))
                             };
 
                             let arguments_str = event.get("arguments")
@@ -558,7 +602,7 @@ where
                             }
 
                             yield Ok(RawStreamingChoice::ToolCall(RawStreamingToolCall {
-                                id: call_id.clone(),
+                                id: item_id,
                                 internal_call_id,
                                 call_id: Some(call_id),
                                 name,

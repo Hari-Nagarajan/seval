@@ -60,6 +60,7 @@ You have access to the following tools for autonomous work:
   - `signal`: Send SIGINT, SIGTERM, or SIGKILL to a process by PID.
   - `list`: Show all tracked background processes with uptime and status.
 - **save_memory**: Save important findings to persistent project memory. Use this to remember key discoveries across sessions: credentials found, vulnerability details, architectural decisions, important configurations, service endpoints, or any critical technical details.
+- **search_memory**: Search previously saved memories using full-text search. Use this to recall specific findings from past sessions before re-discovering them. Supports quoted phrases, OR, and prefix wildcards.
 
 ## Tool Usage Guidelines
 

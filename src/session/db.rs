@@ -55,6 +55,24 @@ const MIGRATIONS: &[&str] = &[
     CREATE INDEX IF NOT EXISTS idx_memory_project ON memory(project_path);",
     // Version 2: Add parent_session_id for sub-agent child sessions
     "ALTER TABLE sessions ADD COLUMN parent_session_id TEXT REFERENCES sessions(id)",
+    // Version 3: FTS5 full-text search over memory content
+    "CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5(
+        content, project_path,
+        content='memory',
+        content_rowid='id'
+    );
+    -- Backfill existing memories into the FTS index.
+    INSERT INTO memory_fts(rowid, content, project_path)
+        SELECT id, content, project_path FROM memory;
+    -- Keep FTS in sync on insert/delete.
+    CREATE TRIGGER IF NOT EXISTS memory_ai AFTER INSERT ON memory BEGIN
+        INSERT INTO memory_fts(rowid, content, project_path)
+        VALUES (new.id, new.content, new.project_path);
+    END;
+    CREATE TRIGGER IF NOT EXISTS memory_ad AFTER DELETE ON memory BEGIN
+        INSERT INTO memory_fts(memory_fts, rowid, content, project_path)
+        VALUES ('delete', old.id, old.content, old.project_path);
+    END;",
 ];
 
 /// Database handle wrapping a shared `SQLite` connection.
@@ -327,6 +345,43 @@ impl Database {
                     created_at: row.get(4)?,
                 })
             })?
+            .filter_map(Result::ok)
+            .collect();
+        Ok(rows)
+    }
+
+    /// Search memories using FTS5 full-text search.
+    ///
+    /// Returns memories whose content matches the query, ranked by relevance.
+    /// The query supports FTS5 syntax (e.g. `"exact phrase"`, `term1 OR term2`).
+    pub fn search_memories(
+        &self,
+        project_path: &str,
+        query: &str,
+        limit: usize,
+    ) -> Result<Vec<MemoryRecord>> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare(
+            "SELECT m.id, m.project_path, m.content, m.source, m.created_at
+             FROM memory m
+             JOIN memory_fts f ON m.id = f.rowid
+             WHERE memory_fts MATCH ?1 AND m.project_path = ?2
+             ORDER BY rank
+             LIMIT ?3",
+        )?;
+        let rows = stmt
+            .query_map(
+                params![query, project_path, i64::try_from(limit).unwrap_or(10)],
+                |row| {
+                    Ok(MemoryRecord {
+                        id: row.get(0)?,
+                        project_path: row.get(1)?,
+                        content: row.get(2)?,
+                        source: row.get(3)?,
+                        created_at: row.get(4)?,
+                    })
+                },
+            )?
             .filter_map(Result::ok)
             .collect();
         Ok(rows)
@@ -723,5 +778,64 @@ mod tests {
         };
         let _ = db.create_session("/test", None).unwrap();
         let _ = db2.create_session("/test2", None).unwrap();
+    }
+
+    #[test]
+    fn search_memories_finds_matching_content() {
+        let db = Database::open_in_memory().unwrap();
+        db.save_memory("/tmp/project", "WPA2 password is berenang", "auto")
+            .unwrap();
+        db.save_memory("/tmp/project", "SSH on port 2222", "auto")
+            .unwrap();
+        db.save_memory("/tmp/project", "Robot dog AP on channel 36", "auto")
+            .unwrap();
+
+        let results = db.search_memories("/tmp/project", "WPA2", 10).unwrap();
+        assert_eq!(results.len(), 1);
+        assert!(results[0].content.contains("berenang"));
+    }
+
+    #[test]
+    fn search_memories_respects_project_path() {
+        let db = Database::open_in_memory().unwrap();
+        db.save_memory("/project/a", "Secret key ABC", "auto")
+            .unwrap();
+        db.save_memory("/project/b", "Secret key XYZ", "auto")
+            .unwrap();
+
+        let results = db.search_memories("/project/a", "secret", 10).unwrap();
+        assert_eq!(results.len(), 1);
+        assert!(results[0].content.contains("ABC"));
+    }
+
+    #[test]
+    fn search_memories_returns_empty_on_no_match() {
+        let db = Database::open_in_memory().unwrap();
+        db.save_memory("/tmp/project", "WPA2 password found", "auto")
+            .unwrap();
+
+        let results = db.search_memories("/tmp/project", "bluetooth", 10).unwrap();
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn search_memories_fts_syncs_on_delete() {
+        let db = Database::open_in_memory().unwrap();
+        let id = db
+            .save_memory("/tmp/project", "Delete me later", "auto")
+            .unwrap();
+        assert_eq!(
+            db.search_memories("/tmp/project", "delete", 10)
+                .unwrap()
+                .len(),
+            1
+        );
+
+        db.delete_memory(id).unwrap();
+        assert!(
+            db.search_memories("/tmp/project", "delete", 10)
+                .unwrap()
+                .is_empty()
+        );
     }
 }

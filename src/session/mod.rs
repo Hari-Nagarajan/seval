@@ -7,3 +7,4 @@ pub mod db;
 pub mod import_export;
 pub mod memory_tool;
 pub mod models;
+pub mod search_tool;

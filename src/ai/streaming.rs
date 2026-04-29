@@ -22,6 +22,7 @@ use crate::approval::{ApprovalHook, ApprovalRequest};
 use crate::config::ApprovalMode;
 use crate::session::db::Database;
 use crate::session::memory_tool::SaveMemoryTool;
+use crate::session::search_tool::SearchMemoryTool;
 use crate::tools::process::ProcessRegistry;
 use crate::tools::spawn_agent::AgentHandleMap;
 use crate::tools::{
@@ -104,8 +105,6 @@ pub fn spawn_streaming_chat(
     let memory_db = db.clone().unwrap_or_else(|| {
         Arc::new(Database::open_in_memory().expect("in-memory DB for memory tool"))
     });
-    let save_memory = SaveMemoryTool::new(Arc::clone(&memory_db), project_path.clone());
-
     // Build the SpawnAgentTool with all required context for spawning agents.
     let deny_rules = approval_hook.deny_rules().to_vec();
     let spawn_agent_tool = SpawnAgentTool::new(
@@ -119,7 +118,7 @@ pub fn spawn_streaming_chat(
         parent_approval_mode,
         db,
         parent_session_id,
-        project_path,
+        project_path.clone(),
         agent_handles,
     );
 
@@ -138,7 +137,11 @@ pub fn spawn_streaming_chat(
                 .tool(LsTool)
                 .tool(WebFetchTool::new())
                 .tool(WebSearchTool::new(brave_api_key))
-                .tool(save_memory)
+                .tool(SaveMemoryTool::new(
+                    Arc::clone(&memory_db),
+                    project_path.clone(),
+                ))
+                .tool(SearchMemoryTool::new(Arc::clone(&memory_db), project_path))
                 .tool(spawn_agent_tool)
                 .tool(ProcessTool::new(working_dir, process_registry))
                 .build();
@@ -158,7 +161,11 @@ pub fn spawn_streaming_chat(
                 .tool(LsTool)
                 .tool(WebFetchTool::new())
                 .tool(WebSearchTool::new(brave_api_key))
-                .tool(save_memory)
+                .tool(SaveMemoryTool::new(
+                    Arc::clone(&memory_db),
+                    project_path.clone(),
+                ))
+                .tool(SearchMemoryTool::new(Arc::clone(&memory_db), project_path))
                 .tool(spawn_agent_tool)
                 .tool(ProcessTool::new(working_dir, process_registry))
                 .build();
@@ -178,7 +185,11 @@ pub fn spawn_streaming_chat(
                 .tool(LsTool)
                 .tool(WebFetchTool::new())
                 .tool(WebSearchTool::new(brave_api_key))
-                .tool(save_memory)
+                .tool(SaveMemoryTool::new(
+                    Arc::clone(&memory_db),
+                    project_path.clone(),
+                ))
+                .tool(SearchMemoryTool::new(Arc::clone(&memory_db), project_path))
                 .tool(spawn_agent_tool)
                 .tool(ProcessTool::new(working_dir, process_registry))
                 .build();

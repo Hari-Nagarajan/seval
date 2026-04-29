@@ -27,9 +27,8 @@ pub enum ToolCategory {
 /// Unknown tools default to `Shell` (most restrictive).
 pub fn classify_tool(name: &str) -> ToolCategory {
     match name {
-        "read" | "grep" | "glob" | "ls" | "web_fetch" | "web_search" | "save_memory" => {
-            ToolCategory::Read
-        }
+        "read" | "grep" | "glob" | "ls" | "web_fetch" | "web_search" | "save_memory"
+        | "search_memory" => ToolCategory::Read,
         "write" | "edit" => ToolCategory::Write,
         // "process" and "shell" are both Shell-category (require approval in Default mode).
         _ => ToolCategory::Shell,
