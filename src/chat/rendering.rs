@@ -31,7 +31,7 @@ pub(super) fn tool_color(name: &str) -> Color {
         "process" => Color::LightYellow,
         "write" | "edit" => Color::Magenta,
         "web_fetch" | "web_search" => Color::Green,
-        "save_memory" => Color::DarkGray,
+        "save_memory" | "search_memory" => Color::DarkGray,
         _ => Color::White,
     }
 }

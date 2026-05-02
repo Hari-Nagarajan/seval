@@ -646,6 +646,7 @@ pub const ALL_TOOL_NAMES: &[&str] = &[
     "web_fetch",
     "web_search",
     "process",
+    "search_memory",
 ];
 
 #[cfg(test)]
